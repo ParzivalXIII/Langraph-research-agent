@@ -1,0 +1,126 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Health & Metrics Response",
+  "description": "Service health status and operational metrics",
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["healthy", "degraded", "unhealthy"],
+      "description": "Overall service status"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Time of status check (ISO 8601)"
+    },
+    "version": {
+      "type": "string",
+      "description": "Application version"
+    },
+    "checks": {
+      "type": "object",
+      "properties": {
+        "api": {
+          "type": "string",
+          "enum": ["healthy", "degraded", "unhealthy"],
+          "description": "API server status"
+        },
+        "tavily": {
+          "type": "string",
+          "enum": ["healthy", "degraded", "unhealthy"],
+          "description": "Tavily API connectivity"
+        },
+        "database": {
+          "type": "string",
+          "enum": ["healthy", "degraded", "unhealthy", "not_configured"],
+          "description": "Database connectivity (if persistence enabled)"
+        },
+        "cache": {
+          "type": "string",
+          "enum": ["healthy", "degraded", "unhealthy", "not_configured"],
+          "description": "Cache (Redis) connectivity (if caching enabled)"
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "properties": {
+        "uptime_seconds": {
+          "type": "integer",
+          "description": "Seconds since application started"
+        },
+        "requests_total": {
+          "type": "integer",
+          "description": "Total requests processed since startup"
+        },
+        "requests_failed": {
+          "type": "integer",
+          "description": "Failed requests (5xx errors)"
+        },
+        "average_latency_ms": {
+          "type": "number",
+          "description": "Average request latency in milliseconds"
+        },
+        "tavily_calls_total": {
+          "type": "integer",
+          "description": "Total Tavily API calls made"
+        },
+        "cache_hit_rate": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Cache hit rate (0.0–1.0)"
+        },
+        "memory_usage_mb": {
+          "type": "number",
+          "description": "Current memory usage in MB"
+        }
+      }
+    }
+  },
+  "required": ["status", "timestamp", "version", "checks"],
+  "additionalProperties": false,
+  "examples": [
+    {
+      "status": "healthy",
+      "timestamp": "2026-03-26T12:00:00Z",
+      "version": "1.0.0",
+      "checks": {
+        "api": "healthy",
+        "tavily": "healthy",
+        "database": "healthy",
+        "cache": "healthy"
+      },
+      "metrics": {
+        "uptime_seconds": 86400,
+        "requests_total": 1500,
+        "requests_failed": 2,
+        "average_latency_ms": 1200,
+        "tavily_calls_total": 450,
+        "cache_hit_rate": 0.65,
+        "memory_usage_mb": 125.4
+      }
+    },
+    {
+      "status": "degraded",
+      "timestamp": "2026-03-26T12:05:00Z",
+      "version": "1.0.0",
+      "checks": {
+        "api": "healthy",
+        "tavily": "degraded",
+        "database": "healthy",
+        "cache": "not_configured"
+      },
+      "metrics": {
+        "uptime_seconds": 86420,
+        "requests_total": 1520,
+        "requests_failed": 5,
+        "average_latency_ms": 1800,
+        "tavily_calls_total": 460,
+        "cache_hit_rate": 0,
+        "memory_usage_mb": 128.2
+      }
+    }
+  ]
+}
