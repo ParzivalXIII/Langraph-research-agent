@@ -1,0 +1,309 @@
+"""Retrieval service for fetching and scoring web sources.
+
+Handles source fetching from Tavily API and applies credibility scoring
+algorithm from data-model.md (§Source Credibility).
+
+Credibility Score Formula (data-model.md):
+  credibility_score = (0.50 × domain_authority) + (0.30 × recency_boost) + (0.20 × citation_count_normalized)
+
+  Where:
+  - domain_authority: 0.8 for well-known tech/news/academic domains, 0.5 default
+  - recency_boost: 1.0 if source published today, 0.9 if this week, 0.7 if this month, 0.5 otherwise
+  - citation_count_normalized: Normalized to 0-1 based on typical citation patterns
+
+  Threshold: Sources with credibility_score < 0.65 get flagged for lower confidence
+
+Depth Parameter Mapping (from data-model.md §Tavily Search Parameter Mapping):
+  basic: search_depth="basic", max_results=5 (typical latency <30s)
+  intermediate: search_depth="advanced", max_results=10 (typical latency <60s)
+  deep: search_depth="advanced", max_results=15+ (typical latency <120s)
+
+Time Range Filter Mapping (from data-model.md):
+  day: filter to 1-day-old sources
+  week: filter to <7 day old sources
+  month: filter to <30 day old sources
+  year: filter to <365 day old sources
+  all: no date filter
+"""
+
+from datetime import datetime, timezone
+
+from app.core.logging import get_logger
+from app.schemas.research import SourceRecord
+from app.tools.tavily import TavilyTool
+
+logger = get_logger(__name__)
+
+# Depth parameter to Tavily API mapping (data-model.md)
+# IMPORTANT: search_depth must be "basic" or "advanced" (strings), not integers
+DEPTH_PARAMETERS = {
+    "basic": {"search_depth": "basic", "max_results": 5},
+    "intermediate": {"search_depth": "advanced", "max_results": 10},
+    "deep": {"search_depth": "advanced", "max_results": 15},
+}
+
+# Time range parameter to days mapping
+TIME_RANGE_DAYS = {
+    "day": 0,  # Sources from today only (age_days <= 0)
+    "week": 7,
+    "month": 30,
+    "year": 365,
+    "all": None,
+}
+
+# Domain authority mapping (can be expanded)
+TRUSTED_DOMAINS = {
+    "arxiv.org": 0.95,
+    "scholar.google.com": 0.95,
+    "ieee.org": 0.93,
+    "acm.org": 0.93,
+    "nature.com": 0.92,
+    "science.org": 0.92,
+    "nytimes.com": 0.88,
+    "bbc.com": 0.88,
+    "reuters.com": 0.88,
+    "apnews.com": 0.88,
+    "github.com": 0.85,
+    "medium.com": 0.65,
+    "wikipedia.org": 0.70,
+}
+
+
+class RetrievalService:
+    """Service for retrieving and scoring web sources."""
+
+    def __init__(self):
+        """Initialize retrieval service with Tavily tool."""
+        self.tavily_tool = TavilyTool()
+
+    async def retrieve_sources(
+        self,
+        query: str,
+        depth: str = "intermediate",
+        max_sources: int = 10,
+        time_range: str = "all",
+    ) -> list[SourceRecord]:
+        """Retrieve sources from Tavily and apply credibility scoring.
+
+        Maps depth parameter to Tavily search parameters per data-model.md
+        (§Tavily Search Parameter Mapping).
+
+        Args:
+            query: Search query
+            depth: Search depth (basic/intermediate/deep) - maps to Tavily search_depth
+            max_sources: Maximum sources to retrieve (overrides depth default if larger)
+            time_range: Time range filter (day/week/month/year/all) - filters source recency
+
+        Returns:
+            List of SourceRecords with credibility scores applied (at most max_sources items)
+
+        Raises:
+            ExternalServiceError: If source retrieval fails
+        """
+        # Validate depth parameter
+        if depth not in DEPTH_PARAMETERS:
+            logger.warning(
+                "invalid_depth_parameter",
+                depth=depth,
+                valid_depths=list(DEPTH_PARAMETERS.keys()),
+            )
+            depth = "intermediate"  # Default to intermediate
+
+        # Get depth-based parameters
+        depth_params = DEPTH_PARAMETERS[depth]
+
+        # Use max_sources parameter, respecting depth defaults
+        # Override max_results if max_sources is explicitly set and larger than depth default
+        effective_max_sources = max(max_sources, depth_params["max_results"])
+
+        logger.info(
+            "retrieval_start",
+            query=query[:100],
+            depth=depth,
+            max_sources=effective_max_sources,
+            time_range=time_range,
+            search_depth=depth_params["search_depth"],
+        )
+
+        try:
+            # Fetch raw sources from Tavily (passing depth-based parameters)
+            sources = await self.tavily_tool.search(
+                query=query,
+                depth=depth,
+                max_sources=effective_max_sources,
+            )
+
+            # Filter sources by time_range if applicable
+            if time_range != "all":
+                sources = self._filter_by_time_range(sources, time_range)
+
+            # Apply credibility scoring to each source
+            scored_sources = []
+            for source in sources:
+                # Stop if we've reached max_sources
+                if len(scored_sources) >= max_sources:
+                    break
+
+                source = self._apply_credibility_score(source)
+                scored_sources.append(source)
+
+                if (source.credibility_score or 0.0) < 0.65:
+                    logger.warning(
+                        "low_credibility_source",
+                        url=source.url,
+                        score=source.credibility_score,
+                    )
+
+            logger.info(
+                "retrieval_complete",
+                query=query[:100],
+                sources_count=len(scored_sources),
+                avg_credibility=(
+                    sum(s.credibility_score or 0.0 for s in scored_sources)
+                    / len(scored_sources)
+                    if scored_sources
+                    else 0.0
+                ),
+                time_range=time_range,
+            )
+            return scored_sources
+
+        except Exception as exc:
+            logger.error(
+                "retrieval_failed",
+                query=query[:100],
+                error=str(exc),
+            )
+            raise
+
+    def _apply_credibility_score(self, source: SourceRecord) -> SourceRecord:
+        """Apply credibility scoring algorithm to a source.
+
+        Implements data-model.md (§Source Credibility) formula:
+          credibility = (0.50 × domain_authority) + (0.30 × recency) + (0.20 × citations)
+
+        Args:
+            source: SourceRecord with basic data from Tavily
+
+        Returns:
+            SourceRecord with credibility_score updated
+        """
+        # Extract domain from URL
+        try:
+            from urllib.parse import urlparse
+
+            domain = urlparse(str(source.url)).netloc.lower()
+            # Remove www. prefix if present
+            if domain.startswith("www."):
+                domain = domain[4:]
+        except Exception:
+            domain = "unknown"
+
+        # Calculate domain authority (0.0-1.0)
+        domain_authority = TRUSTED_DOMAINS.get(domain, 0.5)
+
+        # Calculate recency boost (simplified: assume recent if from Tavily)
+        # In a real system, would parse publish date from source metadata
+        recency_boost = 0.8  # Default assumption for Tavily results (relatively fresh)
+
+        # Citation count normalized (placeholder: 0.6 default for web sources)
+        # Real implementation would scrape citation count from domain
+        citation_normalized = 0.6
+
+        # Apply formula from data-model.md
+        credibility_score = (
+            (0.50 * domain_authority)
+            + (0.30 * recency_boost)
+            + (0.20 * citation_normalized)
+        )
+
+        # Clamp to [0.0, 1.0]
+        credibility_score = max(0.0, min(1.0, credibility_score))
+
+        # Update source with calculated score
+        source.credibility_score = credibility_score
+
+        logger.debug(
+            "credibility_calculated",
+            url=source.url,
+            domain=domain,
+            domain_authority=domain_authority,
+            recency_boost=recency_boost,
+            credibility_score=credibility_score,
+        )
+
+        return source
+
+    def _filter_by_time_range(
+        self,
+        sources: list[SourceRecord],
+        time_range: str,
+    ) -> list[SourceRecord]:
+        """Filter sources by time_range parameter (day/week/month/year/all).
+
+        Applies time range filter per data-model.md (§Tavily Search Parameter Mapping):
+          day: 1-day-old sources
+          week: <7 day old sources
+          month: <30 day old sources
+          year: <365 day old sources
+          all: no filtering
+
+        Args:
+            sources: List of sources to filter
+            time_range: Time range filter (day/week/month/year/all)
+
+        Returns:
+            Filtered list of sources matching time range criteria
+        """
+        if time_range not in TIME_RANGE_DAYS or TIME_RANGE_DAYS[time_range] is None:
+            # No filtering for 'all' or invalid time_range
+            return sources
+
+        max_age_days = TIME_RANGE_DAYS[time_range]
+        current_time = datetime.now(timezone.utc).replace(
+            tzinfo=None
+        )  # Convert to naive for comparison
+
+        filtered_sources = []
+        for source in sources:
+            # If no retrieved_at timestamp, assume it's recent (from Tavily)
+            if not source.retrieved_at:
+                filtered_sources.append(source)
+                continue
+
+            try:
+                # Parse ISO 8601 timestamp and convert to naive datetime for comparison
+                retrieved_time = datetime.fromisoformat(
+                    source.retrieved_at.replace("Z", "+00:00")
+                )
+                # Remove timezone info to match utcnow()
+                retrieved_time = retrieved_time.replace(tzinfo=None)
+                age_days = (current_time - retrieved_time).days
+
+                if age_days <= max_age_days:
+                    filtered_sources.append(source)
+                else:
+                    logger.debug(
+                        "source_filtered_by_age",
+                        url=source.url,
+                        age_days=age_days,
+                        max_age_days=max_age_days,
+                    )
+            except Exception as exc:
+                # If timestamp parsing fails, include source (be permissive)
+                logger.debug(
+                    "source_parse_timestamp_error",
+                    url=source.url,
+                    error=str(exc),
+                )
+                filtered_sources.append(source)
+
+        logger.info(
+            "time_range_filter_applied",
+            time_range=time_range,
+            max_age_days=max_age_days,
+            sources_before=len(sources),
+            sources_after=len(filtered_sources),
+        )
+
+        return filtered_sources

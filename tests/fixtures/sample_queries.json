@@ -1,0 +1,42 @@
+[
+  {
+    "query": "recent AI breakthroughs 2026",
+    "depth": "basic",
+    "expected_source_count_min": 1,
+    "expected_contradictions_count": 0,
+    "description": "Broad topic - quick facts lookup",
+    "sla_seconds": 30
+  },
+  {
+    "query": "Who won the 2026 US election",
+    "depth": "intermediate",
+    "expected_source_count_min": 3,
+    "expected_contradictions_count": 0,
+    "description": "Factual/date-based query with clear answer",
+    "sla_seconds": 60
+  },
+  {
+    "query": "deep sea hydrothermal vent microorganisms taxonomy",
+    "depth": "deep",
+    "expected_source_count_min": 1,
+    "expected_contradictions_count": 0,
+    "description": "Niche scientific topic - expected sparse evidence",
+    "sla_seconds": 120
+  },
+  {
+    "query": "benefits and drawbacks of genetic engineering in agriculture",
+    "depth": "intermediate",
+    "expected_source_count_min": 2,
+    "expected_contradictions_count": 1,
+    "description": "Controversial topic with expected disagreements",
+    "sla_seconds": 60
+  },
+  {
+    "query": "tech news last 30 days",
+    "depth": "basic",
+    "expected_source_count_min": 2,
+    "expected_contradictions_count": 0,
+    "description": "Time-filtered query - recent news only",
+    "sla_seconds": 30
+  }
+]
