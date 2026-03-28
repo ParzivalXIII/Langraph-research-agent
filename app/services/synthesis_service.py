@@ -266,7 +266,20 @@ Generate a brief summary that synthesizes key findings from these sources:"""
 
         try:
             llm = get_llm_client()
+            logger.debug(
+                "llm_invoke_start",
+                method="generate_summary",
+                prompt_length=len(prompt),
+                sources_count=len(sources),
+            )
             response = await llm.ainvoke(prompt)
+            logger.debug(
+                "llm_invoke_complete",
+                method="generate_summary",
+                response_length=(
+                    len(str(response.content)) if hasattr(response, "content") else 0
+                ),
+            )
             # Extract string content from LLM response
             summary = cast(
                 str, response.content if hasattr(response, "content") else str(response)
@@ -332,7 +345,20 @@ Key points:"""
 
         try:
             llm = get_llm_client()
+            logger.debug(
+                "llm_invoke_start",
+                method="extract_key_points",
+                prompt_length=len(prompt),
+                sources_count=len(sources),
+            )
             response = await llm.ainvoke(prompt)
+            logger.debug(
+                "llm_invoke_complete",
+                method="extract_key_points",
+                response_length=(
+                    len(str(response.content)) if hasattr(response, "content") else 0
+                ),
+            )
             # Extract string content from LLM response
             response_text: str = cast(
                 str, response.content if hasattr(response, "content") else str(response)

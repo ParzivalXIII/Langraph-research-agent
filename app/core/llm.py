@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 from typing import Any
+import uuid
 
 from langchain_openrouter import ChatOpenRouter
 
@@ -9,6 +10,10 @@ from app.core.config import settings
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
+
+# Track LLM invocations for debugging excessive API calls
+_llm_call_counter = 0
+_llm_call_session_id = str(uuid.uuid4())[:8]
 
 
 @lru_cache(maxsize=1)
@@ -46,14 +51,53 @@ def get_llm_client() -> ChatOpenRouter:
     )
 
     # Initialize ChatOpenRouter with proper configuration
+    # Disable retries to prevent duplicate API calls
+    # Disable streaming to prevent chunked responses from counting as multiple calls
     kwargs: dict[str, Any] = {
         "model": settings.openrouter_model_id,
         "api_key": settings.openrouter_api_key,
         "temperature": 0.2,  # Low temperature for deterministic research synthesis
+        "max_retries": 0,  # Disable retries - we handle errors at application level
     }
 
     # Add custom base URL if not using the default OpenRouter endpoint
     if settings.openrouter_base_url != "https://openrouter.ai/api/v1":
         kwargs["base_url"] = settings.openrouter_base_url
 
-    return ChatOpenRouter(**kwargs)
+    llm_client = ChatOpenRouter(**kwargs)
+
+    # Wrap the ainvoke method to track calls
+    original_ainvoke = llm_client.ainvoke
+
+    async def tracked_ainvoke(input, *args, **kwargs):
+        """Wrapper around ainvoke to track API calls."""
+        global _llm_call_counter
+        _llm_call_counter += 1
+
+        logger.warning(
+            "llm_api_call_made",
+            call_number=_llm_call_counter,
+            session_id=_llm_call_session_id,
+            model=settings.openrouter_model_id,
+            input_length=len(str(input)) if input else 0,
+        )
+
+        try:
+            result = await original_ainvoke(input, *args, **kwargs)
+            logger.warning(
+                "llm_api_call_succeeded",
+                call_number=_llm_call_counter,
+                session_id=_llm_call_session_id,
+            )
+            return result
+        except Exception as e:
+            logger.error(
+                "llm_api_call_failed",
+                call_number=_llm_call_counter,
+                session_id=_llm_call_session_id,
+                error=str(e),
+            )
+            raise
+
+    llm_client.ainvoke = tracked_ainvoke
+    return llm_client
