@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     # OpenRouter LLM Configuration
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_api_key: str = ""
-    openrouter_model_id: str = "openai/gpt-4-turbo"
+    openrouter_model_id: str = "z-ai/glm-4.5-air:free"
 
     # Database Configuration
     database_url: str = "sqlite:///./research_agent.db"
