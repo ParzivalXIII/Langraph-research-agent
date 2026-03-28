@@ -24,7 +24,11 @@ Depth Control (Phase 4):
 """
 
 import time
+from typing import cast
 
+from langchain_core.exceptions import LangChainException
+
+from app.core.llm import get_llm_client
 from app.core.logging import get_logger
 from app.schemas.research import ConfidenceAssessment, ResearchBrief, SourceRecord
 from app.services.processing_service import ProcessingService
@@ -215,48 +219,152 @@ class SynthesisService:
         return breakdown
 
     async def _generate_summary(self, query: str, sources: list[SourceRecord]) -> str:
-        """Generate research summary using LLM (placeholder for MVP).
+        """Generate research summary using LLM (OpenRouter via LangChain).
 
-        In Phase 3 full implementation, would call OpenRouter LLM.
-        For now, returns formatted summary of source snippets.
+        Calls the configured LLM model via OpenRouter to synthesize source
+        content into a coherent research summary.
+
+        Prompt engineering:
+        - Temperature set to 0.2 for deterministic, evidence-based synthesis
+        - Instructs LLM to cite sources and avoid speculation
+        - Limits to 200 words for conciseness
 
         Args:
             query: Research query
-            sources: Retrieved sources
+            sources: Retrieved sources with titles, snippets, URLs
 
         Returns:
             Synthesized summary string
 
         Raises:
-            LLMError: If LLM call fails (caught by caller for fallback)
+            LangChainException: If LLM call fails (caught by caller for fallback)
+            ValueError: If OPENROUTER_API_KEY not configured
         """
         if not sources:
             return f"No sources found for query: {query}"
 
-        # MVP: Simple aggregation of source snippets
-        # Full implementation would use LangChain + OpenRouter
-        snippets = [f"• {s.snippet[:200]}..." for s in sources[:3]]
-        summary = f"Research on {query}:\n" + "\n".join(snippets)
+        llm_start_time = time.time()
 
-        return summary
+        # Format sources for LLM prompt
+        formatted_sources = "\n".join(
+            [
+                f"- {s.title} (Credibility: {s.credibility_score:.2f})\n  Snippet: {s.snippet[:300]}"
+                for s in sources[:5]
+            ]
+        )
+
+        prompt = f"""You are a research analyst. Synthesize the following sources into a 
+concise, evidence-based research summary (max 200 words). 
+Cite sources and avoid speculation.
+
+Research Query: {query}
+
+Sources:
+{formatted_sources}
+
+Generate a brief summary that synthesizes key findings from these sources:"""
+
+        try:
+            llm = get_llm_client()
+            response = await llm.ainvoke(prompt)
+            # Extract string content from LLM response
+            summary = cast(
+                str, response.content if hasattr(response, "content") else str(response)
+            )
+
+            llm_latency_ms = (time.time() - llm_start_time) * 1000
+            logger.info(
+                "llm_summary_generated",
+                query=query[:100],
+                sources_count=len(sources),
+                summary_length=len(summary),
+                llm_latency_ms=llm_latency_ms,
+            )
+
+            return summary
+
+        except (LangChainException, ValueError) as exc:
+            logger.error(
+                "llm_summary_generation_failed",
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+            raise
 
     async def _extract_key_points(self, sources: list[SourceRecord]) -> list[str]:
-        """Extract key points from sources (placeholder for MVP).
+        """Extract key points from sources using LLM (OpenRouter via LangChain).
+
+        Calls the configured LLM model to identify and extract the most important
+        findings from the retrieved sources.
+
+        Extraction strategy:
+        - Focuses on evidence-based points from source content
+        - Limits to 10 key points per ResearchBrief schema
+        - Returns one point per line for easy parsing
 
         Args:
-            sources: Retrieved sources
+            sources: Retrieved sources with titles and snippets
 
         Returns:
             List of key point strings (max 10)
+
+        Raises:
+            LangChainException: If LLM call fails (caught by caller for fallback)
         """
-        key_points = []
+        if not sources:
+            return ["No sources available for key point extraction"]
 
-        for source in sources[:10]:
-            # Simple extraction: use source title as key point
-            if source.title and len(source.title) > 5:
-                key_points.append(source.title)
+        llm_start_time = time.time()
 
-        return key_points[:10] if key_points else ["No key points extracted"]
+        # Format sources for extraction prompt
+        formatted_sources = "\n".join(
+            [f"- {s.title}: {s.snippet[:250]}" for s in sources[:7]]
+        )
+
+        prompt = f"""You are a research analyst. Extract the 5-10 most important key points 
+from the following sources. Return only the key points, one per line, without numbering.
+Focus on evidence-based findings.
+
+Sources:
+{formatted_sources}
+
+Key points:"""
+
+        try:
+            llm = get_llm_client()
+            response = await llm.ainvoke(prompt)
+            # Extract string content from LLM response
+            response_text: str = cast(
+                str, response.content if hasattr(response, "content") else str(response)
+            )
+
+            # Parse response into individual key points
+            key_points = [
+                point.strip()
+                for point in response_text.split("\n")
+                if point.strip() and len(point.strip()) > 5
+            ]
+
+            # Ensure we don't exceed 10 key points
+            key_points = key_points[:10]
+
+            llm_latency_ms = (time.time() - llm_start_time) * 1000
+            logger.info(
+                "llm_key_points_extracted",
+                sources_count=len(sources),
+                key_points_count=len(key_points),
+                llm_latency_ms=llm_latency_ms,
+            )
+
+            return key_points if key_points else ["No key points extracted"]
+
+        except (LangChainException, ValueError) as exc:
+            logger.error(
+                "llm_key_point_extraction_failed",
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+            raise
 
     def _simple_summary_fallback(self, query: str, sources: list[SourceRecord]) -> str:
         """Fallback summary generation if LLM fails (per spec A2 error handling).

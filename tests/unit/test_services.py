@@ -151,7 +151,9 @@ class TestSynthesisService:
     """Unit tests for SynthesisService."""
 
     @pytest.mark.asyncio
-    async def test_synthesize_brief_success(self, sample_source_record_data):
+    async def test_synthesize_brief_success(
+        self, sample_source_record_data, mock_llm_client
+    ):
         """Test research brief synthesis."""
         service = SynthesisService()
 

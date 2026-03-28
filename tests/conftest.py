@@ -154,3 +154,37 @@ def sample_source_record_data() -> dict[str, Any]:
         "snippet": "IBM has announced new quantum computing breakthroughs",
         "retrieved_at": "2026-03-26T10:30:00Z",
     }
+
+
+# ============================================================================
+# Fixtures: LLM Mocking
+# ============================================================================
+
+
+@pytest.fixture
+def mock_llm_client(monkeypatch):
+    """Mock the LLM client to avoid needing real API keys in tests.
+
+    This fixture can be used in tests that need LLM mocking.
+    Usage: def test_something(mock_llm_client): ...
+    """
+    from unittest.mock import AsyncMock, MagicMock
+
+    # Create a mock LLM response object with a content attribute
+    mock_response = MagicMock()
+    mock_response.content = (
+        "This is a synthesized research summary based on the provided sources. "
+        "Key findings include important information gleaned from the source materials."
+    )
+
+    # Create a mock LLM client with an ainvoke method
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+    # Mock the get_llm_client function throughout the tests
+    def mock_get_llm_client():
+        return mock_llm
+
+    monkeypatch.setattr("app.core.llm.get_llm_client", mock_get_llm_client)
+
+    return mock_llm
