@@ -188,3 +188,89 @@ def mock_llm_client(monkeypatch):
     monkeypatch.setattr("app.core.llm.get_llm_client", mock_get_llm_client)
 
     return mock_llm
+
+
+# ============================================================================
+# Fixtures: UI Client (Gradio Research Interface)
+# ============================================================================
+
+
+@pytest.fixture(scope="function")
+def mock_research_response() -> dict[str, Any]:
+    """Provide a mock research response for testing UI rendering.
+    
+    Returns a complete, valid ResearchResponse with all fields populated.
+    """
+    return {
+        "summary": (
+            "AI agents are increasingly autonomous decision-makers in 2026. "
+            "Key trends include multi-agent frameworks for task decomposition "
+            "and tool-using agents showing improved reasoning capabilities."
+        ),
+        "key_points": [
+            "Multi-agent frameworks enable complex task decomposition",
+            "Tool-using agents show improved reasoning",
+            "Safety constraints are still emerging",
+            "Fine-tuning on specialized tasks improves performance",
+        ],
+        "sources": [
+            {
+                "title": "Agents in 2026 Survey",
+                "url": "https://example.com/agents-survey-2026",
+                "relevance": 0.95,
+            },
+            {
+                "title": "LLM Agents Review",
+                "url": "https://example.com/llm-agents-review",
+                "relevance": 0.87,
+            },
+            {
+                "title": "Multi-Agent Systems Design",
+                "url": "https://example.com/multi-agent-systems",
+                "relevance": 0.82,
+            },
+        ],
+        "contradictions": [
+            "Source A claims agents need more training data; Source B claims pretraining is sufficient"
+        ],
+        "confidence_score": 0.78,
+    }
+
+
+@pytest.fixture(scope="function")
+def mock_invalid_response() -> dict[str, Any]:
+    """Provide a malformed response for error handling tests.
+    
+    Missing required fields to trigger ValidationError.
+    """
+    return {
+        "summary": "This response is incomplete",
+        # Missing: key_points, sources, contradictions, confidence_score
+    }
+
+
+@pytest.fixture(scope="function")
+def mock_client(monkeypatch):
+    """Provide an AsyncMock of ResearchClient for unit tests.
+    
+    Usage: def test_something(mock_client): ...
+    """
+    from unittest.mock import AsyncMock
+
+    mock_client_instance = AsyncMock()
+    mock_client_instance.research = AsyncMock()
+    return mock_client_instance
+
+
+@pytest.fixture(scope="function")
+def research_client():
+    """Provide a real ResearchClient instance pointing to test backend.
+    
+    Uses environment variable API_BASE_URL (default: http://localhost:8000)
+    and API_TIMEOUT (default: 60).
+    
+    Usage: def test_something(research_client): ...
+    """
+    from ui.client.api_client import ResearchClient
+
+    return ResearchClient()

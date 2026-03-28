@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Research Request",
+  "description": "Request payload for POST /research endpoint",
+  "type": "object",
+  "required": [
+    "query",
+    "depth",
+    "max_sources",
+    "time_range"
+  ],
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "The research question or topic",
+      "minLength": 1,
+      "maxLength": 1000,
+      "example": "AI agents in 2026"
+    },
+    "depth": {
+      "type": "string",
+      "description": "Research breadth level",
+      "enum": [
+        "basic",
+        "intermediate",
+        "deep"
+      ],
+      "example": "intermediate"
+    },
+    "max_sources": {
+      "type": "integer",
+      "description": "Maximum number of sources to retrieve",
+      "minimum": 3,
+      "maximum": 10,
+      "example": 5
+    },
+    "time_range": {
+      "type": "string",
+      "description": "Temporal scope of research",
+      "enum": [
+        "day",
+        "week",
+        "month",
+        "year",
+        "all"
+      ],
+      "example": "month"
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "query": "AI agents in 2026",
+      "depth": "intermediate",
+      "max_sources": 5,
+      "time_range": "month"
+    },
+    {
+      "query": "recent breakthroughs in LLM safety",
+      "depth": "deep",
+      "max_sources": 10,
+      "time_range": "week"
+    }
+  ]
+}

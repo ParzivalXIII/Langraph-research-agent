@@ -1,0 +1,120 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Research Response",
+  "description": "Response payload from POST /research endpoint",
+  "type": "object",
+  "required": [
+    "summary",
+    "key_points",
+    "sources",
+    "contradictions",
+    "confidence_score"
+  ],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "Synthesized narrative answer to the research query",
+      "minLength": 1,
+      "example": "AI agents in 2026 represent a significant evolution in autonomous decision-making systems..."
+    },
+    "key_points": {
+      "type": "array",
+      "description": "Bulleted highlights extracted from sources",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "example": [
+        "Multi-agent frameworks enable complex task decomposition",
+        "Tool-using agents show improved reasoning capabilities",
+        "Safety and alignment constraints remain areas of active research"
+      ]
+    },
+    "sources": {
+      "type": "array",
+      "description": "Ranked list of retrieved references",
+      "items": {
+        "type": "object",
+        "required": [
+          "title",
+          "url",
+          "relevance"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Source title or headline",
+            "minLength": 1,
+            "example": "AI Agents Survey 2026"
+          },
+          "url": {
+            "type": "string",
+            "description": "Web URL or reference link",
+            "format": "uri",
+            "example": "https://example.com/ai-agents-survey-2026"
+          },
+          "relevance": {
+            "type": "number",
+            "description": "Relevance score between 0.0 and 1.0",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "example": 0.95
+          }
+        },
+        "additionalProperties": false
+      },
+      "example": [
+        {
+          "title": "Agents in 2026 Survey",
+          "url": "https://example.com/agents-survey",
+          "relevance": 0.95
+        },
+        {
+          "title": "LLM Tool Use Review",
+          "url": "https://example.com/llm-tools",
+          "relevance": 0.87
+        }
+      ]
+    },
+    "contradictions": {
+      "type": "array",
+      "description": "Conflicting statements found across sources (may be empty)",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "example": [
+        "Source A claims agents need extensive training data; Source B argues pretraining is largely sufficient"
+      ]
+    },
+    "confidence_score": {
+      "type": "number",
+      "description": "Confidence score indicating stability and support for the answer",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "example": 0.78
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "summary": "AI agents in 2026 are increasingly autonomous systems capable of complex decision-making and tool usage...",
+      "key_points": [
+        "Multi-agent systems enable task decomposition",
+        "Tool-using agents have improved reasoning",
+        "Safety remains an active research area"
+      ],
+      "sources": [
+        {
+          "title": "Agents in 2026 Survey",
+          "url": "https://example.com/survey",
+          "relevance": 0.95
+        }
+      ],
+      "contradictions": [
+        "Training data requirements differ across sources"
+      ],
+      "confidence_score": 0.78
+    }
+  ]
+}
