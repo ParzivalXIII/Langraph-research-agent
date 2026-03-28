@@ -20,7 +20,7 @@ from functools import partial
 from tavily import TavilyClient
 
 from app.core.config import get_settings
-from app.core.errors import TavilyError, retry_with_backoff
+from app.core.errors import TavilyError
 from app.core.logging import get_logger
 from app.schemas.research import SourceRecord
 
@@ -112,9 +112,10 @@ class TavilyTool:
                     ),
                 )
 
-            response = await retry_with_backoff(
-                async_search, max_retries=3, base_delay=1.0
-            )
+            # Retry logic disabled: search succeeds on first try when validation works.
+            # If Tavily truly fails, it fails consistently (network issue) and retries won't help.
+            # Cost optimization: avoid 3x multiplier on API calls.
+            response = await async_search()
 
             # Convert Tavily response to SourceRecords
             sources: list[SourceRecord] = []
@@ -122,6 +123,17 @@ class TavilyTool:
                 results = response.get("results", [])
                 for result in results:
                     try:
+                        # Truncate snippet to max allowed (5000 chars for schema safety)
+                        snippet = result.get("content", "")
+                        max_snippet_length = 4800  # Leave buffer for schema (max is 5000)
+                        if len(snippet) > max_snippet_length:
+                            logger.debug(
+                                "tavily_snippet_truncated",
+                                original_length=len(snippet),
+                                truncated_to=max_snippet_length,
+                            )
+                            snippet = snippet[:max_snippet_length]
+                        
                         source = SourceRecord(
                             title=result.get("title", "Untitled"),
                             url=result.get("url", ""),
@@ -131,7 +143,7 @@ class TavilyTool:
                             credibility_score=result.get(
                                 "score", 0.5
                             ),  # Use Tavily score as initial credibility
-                            snippet=result.get("content", ""),
+                            snippet=snippet,
                         )
                         sources.append(source)
                     except Exception as exc:

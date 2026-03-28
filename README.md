@@ -2,8 +2,6 @@
 
 A bounded research agent that orchestrates web search, evidence synthesis, and contradiction detection to produce reliable research briefs with source traceability. Built with FastAPI, LangChain, and Tavily.
 
-**Current Status**: Phase 5 Complete ✅ | 114 tests passing | 76% coverage
-
 ---
 
 ## Table of Contents
@@ -69,7 +67,7 @@ The Research Agent accepts natural language queries and returns structured resea
 
 ```bash
 # 1. Clone and enter directory
-git clone <repo-url>
+git clone https://github.com/ParzivalXIII/Langraph-research-agent.git
 cd Langraph-research-agent
 
 # 2. Create environment file
@@ -101,7 +99,7 @@ Open [http://localhost:8000/docs](http://localhost:8000/docs) for interactive AP
 
 ```bash
 # Clone repository
-git clone <repo-url>
+git clone https://github.com/ParzivalXIII/Langraph-research-agent.git
 cd Langraph-research-agent
 
 # Sync dependencies (creates virtual environment)
@@ -121,16 +119,17 @@ uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ### Dependencies Installed
 
 **Production**:
+
 - `fastapi` - Web framework
 - `uvicorn` - ASGI server
-- `langchain` & `langchain-community` - Agent orchestration
+- `langchain` & `langchain-openrouter` - Agent orchestration and LLM API
 - `pydantic` - Data validation
 - `tavily-python` - Web search
-- `openrouter` - LLM API
 - `httpx` - Async HTTP
 - `structlog` - Structured logging
 
 **Development**:
+
 - `pytest` & `pytest-asyncio` - Testing
 - `pytest-cov` - Coverage reporting
 - `black` - Code formatting
@@ -294,6 +293,7 @@ curl -X POST "http://localhost:8000/research" \
 Perform a research query.
 
 **Request**:
+
 ```json
 {
   "query": "string",
@@ -304,6 +304,7 @@ Perform a research query.
 ```
 
 **Responses**:
+
 - `200 OK` - ResearchBrief
 - `422 Unprocessable Entity` - Validation error
 - `503 Service Unavailable` - Dependencies offline
@@ -315,6 +316,7 @@ Perform a research query.
 Health check endpoint.
 
 **Response** (200 OK):
+
 ```json
 {
   "status": "healthy",
@@ -334,6 +336,7 @@ Health check endpoint.
 Operational metrics.
 
 **Response** (200 OK):
+
 ```json
 {
   "total_queries": 1234,
@@ -405,19 +408,23 @@ Errors include descriptive messages and error codes:
 ### Service Layers
 
 **app/api/routes/**
+
 - `health.py` - Health checks and metrics endpoints
 - `research.py` - Main research query endpoint
 
 **app/services/**
+
 - `retrieval_service.py` - Tavily search, credibility scoring
 - `processing_service.py` - Contradiction detection, ranking
 - `synthesis_service.py` - LLM synthesis, confidence calculation
 - `metrics.py` - Query metrics tracking
 
 **app/agents/**
+
 - `research_agent.py` - LangChain agent with Tavily tool
 
 **app/core/**
+
 - `config.py` - Settings and environment variables
 - `logging.py` - Structured logging setup
 - `database.py` - Database session management (optional)
@@ -617,6 +624,7 @@ docker-compose down
 **Error**: `AuthenticationError: Invalid Tavily API key`
 
 **Solution**:
+
 ```bash
 # Verify .env file exists
 cat .env | grep TAVILY_API_KEY
@@ -630,6 +638,7 @@ cat .env | grep TAVILY_API_KEY
 **Error**: `ConnectionError: Failed to connect to OpenRouter`
 
 **Solution**:
+
 ```bash
 # Check internet connection
 curl https://openrouter.ai/api/v1/models
@@ -647,6 +656,7 @@ grep OPENROUTER .env
 **Status**: This is a known warning in test fixtures. Production code uses `datetime.now(timezone.utc)`. Not a test failure.
 
 **Suppress warnings**:
+
 ```bash
 uv run pytest tests/ -W ignore::DeprecationWarning -v
 ```
@@ -656,6 +666,7 @@ uv run pytest tests/ -W ignore::DeprecationWarning -v
 **Error**: `OSError: [Errno 98] Address already in use`
 
 **Solution**:
+
 ```bash
 # Use different port
 uv run uvicorn app.main:app --reload --port 8001
@@ -670,6 +681,7 @@ kill -9 <PID>
 **Error**: `ModuleNotFoundError: No module named 'app'`
 
 **Solution**:
+
 ```bash
 # Ensure dependencies are synced
 uv sync
@@ -746,6 +758,7 @@ The system is designed to meet these latency targets:
 | Deep | 15 | <120s | Maximum depth research |
 
 **Current measured performance**:
+
 - Basic: ~8-12 seconds (1-2 Tavily calls)
 - Intermediate: ~15-25 seconds (2-3 Tavily calls)
 - Deep: ~25-45 seconds (3 Tavily calls + synthesis)
@@ -761,6 +774,7 @@ curl http://localhost:8000/metrics | jq .
 ### Optimization Tips
 
 1. **Add Redis caching** (Phase 3+):
+
    ```bash
    REDIS_URL=redis://localhost:6379/0 uv run uvicorn app.main:app
    ```

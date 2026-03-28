@@ -87,8 +87,8 @@ class SourceRecord(BaseModel):
     )
     snippet: str = Field(
         default="",
-        max_length=500,
-        description="Optional excerpt from source (0–500 chars)",
+        max_length=5000,
+        description="Optional excerpt from source (0–5000 chars, Tavily returns up to 4000)",
     )
     retrieved_at: Optional[str] = Field(
         default=None,

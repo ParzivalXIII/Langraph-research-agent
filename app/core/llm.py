@@ -16,8 +16,80 @@ _llm_call_counter = 0
 _llm_call_session_id = str(uuid.uuid4())[:8]
 
 
+class TrackedChatOpenRouter:
+    """Wrapper around ChatOpenRouter to track API calls."""
+
+    def __init__(self, llm_client: ChatOpenRouter):
+        """Initialize wrapper with the underlying LLM client."""
+        self._llm_client = llm_client
+
+    async def ainvoke(self, input_data: Any, *args: Any, **kwargs: Any) -> Any:
+        """Track and invoke the LLM asynchronously."""
+        global _llm_call_counter
+        _llm_call_counter += 1
+
+        logger.warning(
+            "llm_api_call_made",
+            call_number=_llm_call_counter,
+            session_id=_llm_call_session_id,
+            model=settings.openrouter_model_id,
+            input_length=len(str(input_data)) if input_data else 0,
+        )
+
+        try:
+            result = await self._llm_client.ainvoke(input_data, *args, **kwargs)
+            logger.warning(
+                "llm_api_call_succeeded",
+                call_number=_llm_call_counter,
+                session_id=_llm_call_session_id,
+            )
+            return result
+        except Exception as e:
+            logger.error(
+                "llm_api_call_failed",
+                call_number=_llm_call_counter,
+                session_id=_llm_call_session_id,
+                error=str(e),
+            )
+            raise
+
+    def invoke(self, input_data: Any, *args: Any, **kwargs: Any) -> Any:
+        """Track and invoke the LLM synchronously."""
+        global _llm_call_counter
+        _llm_call_counter += 1
+
+        logger.warning(
+            "llm_api_call_made",
+            call_number=_llm_call_counter,
+            session_id=_llm_call_session_id,
+            model=settings.openrouter_model_id,
+            input_length=len(str(input_data)) if input_data else 0,
+        )
+
+        try:
+            result = self._llm_client.invoke(input_data, *args, **kwargs)
+            logger.warning(
+                "llm_api_call_succeeded",
+                call_number=_llm_call_counter,
+                session_id=_llm_call_session_id,
+            )
+            return result
+        except Exception as e:
+            logger.error(
+                "llm_api_call_failed",
+                call_number=_llm_call_counter,
+                session_id=_llm_call_session_id,
+                error=str(e),
+            )
+            raise
+
+    def __getattr__(self, name: str) -> Any:
+        """Delegate attribute access to the underlying LLM client."""
+        return getattr(self._llm_client, name)
+
+
 @lru_cache(maxsize=1)
-def get_llm_client() -> ChatOpenRouter:
+def get_llm_client() -> TrackedChatOpenRouter:
     """Get or initialize the LLM client (cached singleton).
 
     Uses LangChain's ChatOpenRouter integration to communicate with
@@ -29,7 +101,7 @@ def get_llm_client() -> ChatOpenRouter:
     - OPENROUTER_MODEL_ID: Model identifier (e.g., "openai/gpt-4-turbo")
 
     Returns:
-        ChatOpenRouter: Initialized LLM client
+        TrackedChatOpenRouter: Wrapped LLM client with request tracking
 
     Raises:
         ValueError: If OPENROUTER_API_KEY is not configured
@@ -52,7 +124,6 @@ def get_llm_client() -> ChatOpenRouter:
 
     # Initialize ChatOpenRouter with proper configuration
     # Disable retries to prevent duplicate API calls
-    # Disable streaming to prevent chunked responses from counting as multiple calls
     kwargs: dict[str, Any] = {
         "model": settings.openrouter_model_id,
         "api_key": settings.openrouter_api_key,
@@ -66,38 +137,5 @@ def get_llm_client() -> ChatOpenRouter:
 
     llm_client = ChatOpenRouter(**kwargs)
 
-    # Wrap the ainvoke method to track calls
-    original_ainvoke = llm_client.ainvoke
-
-    async def tracked_ainvoke(input, *args, **kwargs):
-        """Wrapper around ainvoke to track API calls."""
-        global _llm_call_counter
-        _llm_call_counter += 1
-
-        logger.warning(
-            "llm_api_call_made",
-            call_number=_llm_call_counter,
-            session_id=_llm_call_session_id,
-            model=settings.openrouter_model_id,
-            input_length=len(str(input)) if input else 0,
-        )
-
-        try:
-            result = await original_ainvoke(input, *args, **kwargs)
-            logger.warning(
-                "llm_api_call_succeeded",
-                call_number=_llm_call_counter,
-                session_id=_llm_call_session_id,
-            )
-            return result
-        except Exception as e:
-            logger.error(
-                "llm_api_call_failed",
-                call_number=_llm_call_counter,
-                session_id=_llm_call_session_id,
-                error=str(e),
-            )
-            raise
-
-    llm_client.ainvoke = tracked_ainvoke
-    return llm_client
+    # Return wrapped client with tracking
+    return TrackedChatOpenRouter(llm_client)
