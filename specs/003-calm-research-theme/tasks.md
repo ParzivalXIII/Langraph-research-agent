@@ -216,13 +216,13 @@ Verify theme parameters can be customized and changes apply to UI
 
 ### Tasks
 
-- [ ] T037 [US2] Write documentation: "Theme Customization Guide" in `specs/003-calm-research-theme/customization-guide.md` with code examples
-- [ ] T038 [US2] Create example: Custom theme with different primary_hue in `tests/fixtures/custom_theme_example.py`
-- [ ] T039 [US2] Create example: Custom theme with larger spacing in `tests/fixtures/custom_theme_example.py`
-- [ ] T040 [US2] Write test: `test_custom_primary_hue` creating theme with primary_hue="sky" and verifying CSS var set (tests/ui/test_theme_customization.py)
-- [ ] T041 [US2] Write test: `test_custom_spacing` creating theme with spacing_size="lg" and verifying CSS var set (tests/ui/test_theme_customization.py)
-- [ ] T042 [US2] Create admin/maintainer documentation on how to deploy with custom theme parameters (README for theme module)
-- [ ] T043 [US2] Verify theme documentation available in `quickstart.md` section 3 (Advanced Customization)
+- [x] T037 [US2] Write documentation: "Theme Customization Guide" in `specs/003-calm-research-theme/customization-guide.md` with code examples
+- [x] T038 [US2] Create example: Custom theme with different primary_hue in `tests/fixtures/custom_theme_example.py`
+- [x] T039 [US2] Create example: Custom theme with larger spacing in `tests/fixtures/custom_theme_example.py`
+- [x] T040 [US2] Write test: `test_custom_primary_hue` creating theme with primary_hue="sky" and verifying CSS var set (tests/ui/test_theme_customization.py)
+- [x] T041 [US2] Write test: `test_custom_spacing` creating theme with spacing_size="lg" and verifying CSS var set (tests/ui/test_theme_customization.py)
+- [x] T042 [US2] Create admin/maintainer documentation on how to deploy with custom theme parameters (README for theme module)
+- [x] T043 [US2] Verify theme documentation available in `quickstart.md` section 3 (Advanced Customization)
 
 ---
 

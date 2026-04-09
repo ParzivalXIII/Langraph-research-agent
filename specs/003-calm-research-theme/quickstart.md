@@ -99,8 +99,8 @@ from gradio import themes
 # Customize the theme parameters
 custom_theme = CalmResearchTheme(
     primary_hue=themes.colors.sky,      # Use sky blue instead of standard blue
-    spacing_size=themes.sizes.lg,       # Larger spacing for more breathing room
-    text_size=themes.sizes.lg,          # Larger text for better readability
+    spacing_size="lg",       # Larger spacing for more breathing room
+    text_size="lg",          # Larger text for better readability
     enable_dark_mode=True               # Enable dark mode toggle (default)
 )
 
@@ -148,6 +148,14 @@ with gr.Blocks(theme=CalmResearchTheme(), css=custom_css) as demo:
     # Your components here
     pass
 ```
+
+### For More Customization Options
+
+See the **[Theme Customization Guide](./customization-guide.md)** for comprehensive documentation on:
+- All available customization parameters
+- Use case examples (accessibility, corporate branding, minimal interfaces)
+- Best practices and common patterns
+- Troubleshooting and deployment guidance
 
 ---
 
@@ -497,7 +505,7 @@ def test_theme_instantiation_custom():
     """Test theme can be instantiated with custom parameters"""
     theme = CalmResearchTheme(
         primary_hue=themes.colors.sky,
-        spacing_size=themes.sizes.lg
+        spacing_size="lg"
     )
     assert theme is not None
 
