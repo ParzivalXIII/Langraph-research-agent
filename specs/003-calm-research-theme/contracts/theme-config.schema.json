@@ -1,0 +1,161 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://langraph-research.example.com/schemas/theme-config.json",
+  "title": "Calm Research Theme Configuration",
+  "description": "Schema for CalmResearchTheme constructor parameters",
+  "type": "object",
+  "properties": {
+    "primary_hue": {
+      "type": "string",
+      "description": "Primary hue color (cool blue family)",
+      "enum": [
+        "blue",
+        "cyan",
+        "sky"
+      ],
+      "default": "blue",
+      "examples": [
+        "blue",
+        "#0284C7"
+      ]
+    },
+    "secondary_hue": {
+      "type": "string",
+      "description": "Secondary hue color (slate/gray family)",
+      "enum": [
+        "slate",
+        "gray",
+        "zinc"
+      ],
+      "default": "slate",
+      "examples": [
+        "slate",
+        "#64748B"
+      ]
+    },
+    "neutral_hue": {
+      "type": "string",
+      "description": "Neutral hue color (gray family for text/borders)",
+      "enum": [
+        "gray",
+        "zinc",
+        "stone"
+      ],
+      "default": "gray",
+      "examples": [
+        "gray",
+        "#6B7280"
+      ]
+    },
+    "spacing_size": {
+      "type": "string",
+      "description": "Base spacing unit size",
+      "enum": [
+        "sm",
+        "md",
+        "lg"
+      ],
+      "default": "md",
+      "examples": [
+        "md"
+      ]
+    },
+    "radius_size": {
+      "type": "string",
+      "description": "Border radius size (roundedness)",
+      "enum": [
+        "sm",
+        "md",
+        "lg"
+      ],
+      "default": "md",
+      "examples": [
+        "md"
+      ]
+    },
+    "text_size": {
+      "type": "string",
+      "description": "Base text font size",
+      "enum": [
+        "sm",
+        "md",
+        "lg"
+      ],
+      "default": "md",
+      "examples": [
+        "md"
+      ]
+    },
+    "font_primary": {
+      "type": "array",
+      "description": "Primary font family stack",
+      "items": {
+        "type": "string"
+      },
+      "default": [
+        "IBM Plex Sans",
+        "ui-sans-serif",
+        "system-ui",
+        "sans-serif"
+      ],
+      "examples": [
+        [
+          "IBM Plex Sans",
+          "ui-sans-serif",
+          "sans-serif"
+        ]
+      ]
+    },
+    "font_mono": {
+      "type": "array",
+      "description": "Monospace font family stack",
+      "items": {
+        "type": "string"
+      },
+      "default": [
+        "IBM Plex Mono",
+        "ui-monospace",
+        "monospace"
+      ],
+      "examples": [
+        [
+          "IBM Plex Mono",
+          "ui-monospace",
+          "monospace"
+        ]
+      ]
+    },
+    "enable_dark_mode": {
+      "type": "boolean",
+      "description": "Enable dark mode toggle in UI",
+      "default": true,
+      "examples": [
+        true,
+        false
+      ]
+    }
+  },
+  "required": [],
+  "additionalProperties": false,
+  "examples": [
+    {
+      "primary_hue": "blue",
+      "secondary_hue": "slate",
+      "neutral_hue": "gray",
+      "spacing_size": "md",
+      "radius_size": "md",
+      "text_size": "md",
+      "font_primary": [
+        "IBM Plex Sans",
+        "ui-sans-serif",
+        "sans-serif"
+      ],
+      "font_mono": [
+        "IBM Plex Mono",
+        "ui-monospace",
+        "monospace"
+      ],
+      "enable_dark_mode": true
+    }
+  ]
+}

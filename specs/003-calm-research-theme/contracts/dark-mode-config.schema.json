@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://langraph-research.example.com/schemas/dark-mode-config.json",
+  "title": "Calm Research Theme Dark Mode Configuration",
+  "description": "Schema for dark mode user preference stored in browser localStorage",
+  "type": "object",
+  "properties": {
+    "calmResearchTheme": {
+      "type": "object",
+      "description": "Dark mode preference and metadata",
+      "properties": {
+        "darkMode": {
+          "type": "boolean",
+          "description": "Whether dark mode is currently enabled",
+          "default": false,
+          "examples": [
+            true,
+            false
+          ]
+        },
+        "lastUpdated": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of last preference change",
+          "examples": [
+            "2026-04-09T10:30:00Z",
+            "2026-04-09T15:45:30.123Z"
+          ]
+        },
+        "autoMode": {
+          "type": "boolean",
+          "description": "Follow system dark mode preference (future feature)",
+          "default": false,
+          "examples": [
+            true,
+            false
+          ]
+        }
+      },
+      "required": [
+        "darkMode"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "calmResearchTheme": {
+        "darkMode": true,
+        "lastUpdated": "2026-04-09T10:30:00Z",
+        "autoMode": false
+      }
+    },
+    {
+      "calmResearchTheme": {
+        "darkMode": false,
+        "lastUpdated": "2026-04-09T15:45:30.123Z"
+      }
+    }
+  ]
+}
