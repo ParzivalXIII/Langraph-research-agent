@@ -176,7 +176,7 @@ def test_client_initialization_defaults():
     with patch.dict("os.environ", {"API_BASE_URL": "", "API_TIMEOUT": ""}):
         client = ResearchClient()
         assert client.base_url == "http://localhost:8000"
-        assert client.timeout == 60
+        assert client.timeout == 90
 
 
 def test_client_initialization_from_env():

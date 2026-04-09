@@ -123,7 +123,7 @@ echo -e "${YELLOW}[STEP 4] Choose Deployment Method${NC}"
 echo ""
 
 echo "Option 1: Local Development (Testing)"
-echo "  uv run python ui/app.py"
+echo "  uv run python -m ui.app"
 echo "  Then open: http://localhost:7860"
 echo ""
 
@@ -165,7 +165,7 @@ if ! curl -s -o /dev/null -w "%{http_code}" "http://localhost:8000/health" 2>/de
 fi
 
 echo "Starting UI..."
-uv run python ui/app.py
+uv run python -m ui.app
 
 # ============================================================================
 # POST-DEPLOYMENT VERIFICATION

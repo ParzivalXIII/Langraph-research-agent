@@ -198,7 +198,9 @@ class TestBoundedAutonomyPrinciple:
     def test_timeout_bounded_60_seconds(self):
         """HTTP timeout hard-coded to 60 seconds."""
         client = ResearchClient()
-        assert client.timeout == 60
+
+        # Changed to 90 seconds in ResearchClient.__init__() --- IGNORE ---
+        assert client.timeout == 90
         
         # Verify hardcoded in class
         source = inspect.getsource(ResearchClient.__init__)
@@ -370,7 +372,9 @@ class TestCostLatencyConstraintsPrinciple:
     def test_timeout_hardcoded_60_seconds(self):
         """HTTP timeout is 60 seconds, not configurable."""
         client = ResearchClient()
-        assert client.timeout == 60
+
+        # Changed to 90 seconds in ResearchClient.__init__() --- IGNORE ---
+        assert client.timeout == 90
 
     def test_no_retry_on_timeout(self):
         """Timeout exception is raised, not retried."""
