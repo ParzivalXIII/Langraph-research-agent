@@ -249,11 +249,11 @@ Support custom CSS extensions and verify they integrate without conflicts
 
 ### Tasks
 
-- [ ] T044 [US4] Create optional advanced styling guide in `specs/003-calm-research-theme/advanced-styling-guide.md` with custom CSS patterns
-- [ ] T045 [US4] Document common custom CSS patterns: gradients, animations, advanced layouts
-- [ ] T046 [US4] Provide example custom_css for a "research summary card" with gradient background
-- [ ] T047 [US4] Write test: `test_custom_css_integration` adding custom CSS rule and verifying no console errors (tests/ui/test_theme_custom_css.py)
-- [ ] T048 [US4] Verify custom CSS examples work in multiple browsers
+- [x] T044 [US4] Create optional advanced styling guide in `specs/003-calm-research-theme/advanced-styling-guide.md` with custom CSS patterns
+- [x] T045 [US4] Document common custom CSS patterns: gradients, animations, advanced layouts
+- [x] T046 [US4] Provide example custom_css for a "research summary card" with gradient background
+- [x] T047 [US4] Write test: `test_custom_css_integration` adding custom CSS rule and verifying no console errors (tests/ui/test_theme_custom_css.py)
+- [x] T048 [US4] Verify custom CSS examples work in multiple browsers
 
 ---
 
