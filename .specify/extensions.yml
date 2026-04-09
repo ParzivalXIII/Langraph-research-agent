@@ -18,6 +18,14 @@ hooks:
     prompt: Run verify to validate implementation against specification?
     description: Post-implementation verification gate
     condition: null
+  - extension: qa
+    command: speckit.qa.run
+    enabled: true
+    optional: true
+    prompt: Run QA testing?
+    description: Validates acceptance criteria through browser-driven or CLI-based
+      testing
+    condition: null
   after_specify:
   - extension: refine
     command: speckit.refine.status
