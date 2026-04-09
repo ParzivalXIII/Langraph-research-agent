@@ -317,10 +317,10 @@ def build_app() -> gr.Blocks:
         # Header
         gr.Markdown(
             """
-            # Controlled Research Interface
+            # Perseus Research Agent
             
             Submit a research query with your preferred depth, source limit, and time range.
-            The interface collects your request and renders the backend's structured response.
+            The agent collects your request and renders the backend's structured response.
             """
         )
 
@@ -376,9 +376,11 @@ def build_app() -> gr.Blocks:
                     summary_output = gr.Markdown(value="", elem_id="results-summary")
 
                     key_points_output = gr.Textbox(
+                        label="Key Points",
                         lines=6,
                         interactive=False,
                         value="",
+                        show_label=True,
                         elem_id="key-points-output",
                     )
 
@@ -393,8 +395,10 @@ def build_app() -> gr.Blocks:
                 with gr.Group(elem_id="confidence-group"):
                     contradictions_output = gr.Markdown(value="", elem_id="contradictions-output")
                     confidence_output = gr.Textbox(
+                        label="Confidence Score",
                         value="",
                         interactive=False,
+                        show_label=True,
                         elem_id="confidence-output",
                     )
 
