@@ -68,12 +68,12 @@ Prepare project structure and verify prerequisites
 
 ### Tasks
 
-- [ ] T001 Create feature branch and initialize project structure per plan.md
-- [ ] T002 Create `ui/theme/` directory with `__init__.py` skeleton
-- [ ] T003 Create `tests/ui/` directory with test infrastructure (conftest.py, fixtures)
-- [ ] T004 Verify Gradio 6.10.0+ available via `pip list | grep gradio`
-- [ ] T005 Update project root `.gitignore` to exclude theme build artifacts (*.pyc, **pycache**)
-- [ ] T006 Document setup instructions in team wiki or README if needed
+- [x] T001 Create feature branch and initialize project structure per plan.md
+- [x] T002 Create `ui/theme/` directory with `__init__.py` skeleton
+- [x] T003 Create `tests/ui/` directory with test infrastructure (conftest.py, fixtures)
+- [x] T004 Verify Gradio 6.10.0+ available via `pip list | grep gradio`
+- [x] T005 Update project root `.gitignore` to exclude theme build artifacts (*.pyc, **pycache**)
+- [x] T006 Document setup instructions in team wiki or README if needed
 
 ---
 
@@ -99,17 +99,17 @@ Implement `CalmResearchTheme` base class inheriting from `gr.themes.Base`
 
 ### Tasks
 
-- [ ] T007 [P] Implement `CalmResearchTheme` class in `ui/theme/calm_research_theme.py` inheriting from `gr.themes.Base`
-- [ ] T008 [P] Define color palette constants in `CalmResearchTheme` using design tokens from data-model.md
-- [ ] T009 [P] Implement `__init__` constructor with parameters: primary_hue, secondary_hue, neutral_hue, spacing_size, radius_size, text_size, font_primary, font_mono, enable_dark_mode
-- [ ] T010 [P] Configure Gradio CSS variables via `.set()` method for all core component types (buttons, inputs, labels, panels)
-- [ ] T011 [P] Add dark mode CSS variables (primary_**dark, secondary***dark, neutral**_dark, text_light_on_dark)
-- [ ] T012 [P] Export `CalmResearchTheme` from `ui/theme/__init__.py` for public API
-- [ ] T013 Write unit test: `test_theme_default_parameters` verifying instantiation with defaults (tests/ui/test_theme_instantiation.py)
-- [ ] T014 Write unit test: `test_theme_custom_parameters` verifying custom constructor args are honored (tests/ui/test_theme_instantiation.py)
-- [ ] T015 Write unit test: `test_theme_css_variables_set` verifying CSS variables dict is populated (tests/ui/test_theme_instantiation.py)
-- [ ] T016 Run unit tests and verify all pass: `pytest tests/ui/test_theme_instantiation.py -v`
-- [ ] T017 Measure theme load time and verify <100ms overhead (use browser DevTools Performance tab)
+- [x] T007 [P] Implement `CalmResearchTheme` class in `ui/theme/calm_research_theme.py` inheriting from `gr.themes.Base`
+- [x] T008 [P] Define color palette constants in `CalmResearchTheme` using design tokens from data-model.md
+- [x] T009 [P] Implement `__init__` constructor with parameters: primary_hue, secondary_hue, neutral_hue, spacing_size, radius_size, text_size, font_primary, font_mono, enable_dark_mode
+- [x] T010 [P] Configure Gradio CSS variables via `.set()` method for all core component types (buttons, inputs, labels, panels)
+- [x] T011 [P] Add dark mode CSS variables (primary_**dark, secondary***dark, neutral**_dark, text_light_on_dark)
+- [x] T012 [P] Export `CalmResearchTheme` from `ui/theme/__init__.py` for public API
+- [x] T013 Write unit test: `test_theme_default_parameters` verifying instantiation with defaults (tests/ui/test_theme_instantiation.py)
+- [x] T014 Write unit test: `test_theme_custom_parameters` verifying custom constructor args are honored (tests/ui/test_theme_instantiation.py)
+- [x] T015 Write unit test: `test_theme_css_variables_set` verifying CSS variables dict is populated (tests/ui/test_theme_instantiation.py)
+- [x] T016 Run unit tests and verify all pass: `pytest tests/ui/test_theme_instantiation.py -v`
+- [x] T017 Measure theme load time and verify <100ms overhead (use browser DevTools Performance tab)
 
 ---
 
