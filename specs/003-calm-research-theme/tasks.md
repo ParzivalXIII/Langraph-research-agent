@@ -139,10 +139,10 @@ Implement Professional Calm color palette and verify visual improvements in rese
 
 ### Tasks
 
-- [ ] T018 [US1] Integrate `CalmResearchTheme` into `ui/app.py` via `gr.Blocks(theme=CalmResearchTheme())`
-- [ ] T019 [US1] Launch app and verify theme applies: `python ui/app.py`
-- [ ] T020 [US1] Verify all Gradio components render with calm color palette (buttons, textboxes, dropdowns, sliders)
-- [ ] T021 [US1] Write WCAG AA contrast test in `tests/ui/test_theme_colors_contrast.py` verifying text contrast ≥4.5:1
+- [x] T018 [US1] Integrate `CalmResearchTheme` into `ui/app.py` via `gr.Blocks(theme=CalmResearchTheme())`
+- [x] T019 [US1] Launch app and verify theme applies: `python ui/app.py`
+- [x] T020 [US1] Verify all Gradio components render with calm color palette (buttons, textboxes, dropdowns, sliders)
+- [x] T021 [US1] Write WCAG AA contrast test in `tests/ui/test_theme_colors_contrast.py` verifying text contrast ≥4.5:1
 - [ ] T022 [US1] Run contrast validation using axe DevTools or similar in each browser
 - [ ] T023 [US1] Document before/after screenshots comparing default Gradio theme vs. CalmResearchTheme
 - [ ] T024 [US1] Verify theme in Chrome, Firefox, Safari, Edge; document any browser-specific rendering issues
@@ -176,13 +176,13 @@ Implement research-specific component styling for query input, results, controls
 
 ### Tasks
 
-- [ ] T026 [P] [US3] Create `ui/styles/research_interface.css` with research-specific component styling
+- [x] T026 [P] [US3] Create `ui/styles/research_interface.css` with research-specific component styling
 - [ ] T027 [US3] Implement query input section styling: background `#F9FAFB`, padding `16px`, border-radius `8px`, prominent submit button
 - [ ] T028 [US3] Implement results display styling: card layout, summary text bold/large, key points bulleted with background
 - [ ] T029 [US3] Implement controls panel styling: grouped with background `#F3F4F6`, borders, logical spacing
 - [ ] T030 [US3] Implement sources/citations table styling: header background, alternating row colors, link underlines
 - [ ] T031 [P] [US3] Add CSS to theme via `custom_css` attribute in `CalmResearchTheme`
-- [ ] T032 [US3] Add elem_id attributes to research components in `ui/app.py` for CSS targeting (query-section, results-section, controls-section, sources-section)
+- [x] T032 [US3] Add elem_id attributes to research components in `ui/app.py` for CSS targeting (query-section, results-section, controls-section, sources-section)
 - [ ] T033 [US3] Write test: `test_query_input_styling` verifying query section has distinct background (tests/ui/test_theme_research_components.py)
 - [ ] T034 [US3] Write test: `test_results_display_styling` verifying results have header styling (tests/ui/test_theme_research_components.py)
 - [ ] T035 [US3] Take screenshots of each research component and verify visual distinction

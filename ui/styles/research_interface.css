@@ -1,0 +1,597 @@
+/**
+ * Professional Calm Research Interface - Component Styling
+ * 
+ * This stylesheet provides component-specific styling for the research interface,
+ * building on the CalmResearchTheme design tokens. It creates distinct visual
+ * grouping for query input, results display, and control panels.
+ * 
+ * Design principles:
+ * - Clear visual hierarchy through spacing and backgrounds
+ * - Calm aesthetic with cool blues, soft grays, and whitespace
+ * - Accessibility-first: sufficient contrast, readable spacing
+ * - Responsive design for desktop and tablet layouts
+ */
+
+/* ============================================================================
+   Query Input Section
+   ============================================================================ */
+
+#query-input-section {
+  background: linear-gradient(135deg, #F0F9FF 0%, #F8FAFC 100%);
+  border-left: 4px solid #0EA5E9;
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+#query-input-section h3 {
+  color: #082F49;
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 16px 0;
+  padding: 0;
+}
+
+/* Query input textbox */
+#query-input-wrapper {
+  margin-bottom: 16px;
+}
+
+#query-input-wrapper textarea {
+  background-color: #FFFFFF;
+  border: 2px solid #E2E8F0;
+  border-radius: 6px;
+  padding: 12px 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #1E293B;
+  transition: all 0.2s ease;
+}
+
+#query-input-wrapper textarea:focus {
+  border-color: #0EA5E9;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+  outline: none;
+}
+
+#query-input-wrapper textarea::placeholder {
+  color: #94A3B8;
+}
+
+/* ============================================================================
+   Controls Panel
+   ============================================================================ */
+
+#controls-panel {
+  background-color: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+#controls-panel .control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#controls-panel label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+#controls-panel select,
+#controls-panel input[type="range"] {
+  border-radius: 6px;
+  border: 1px solid #E2E8F0;
+  padding: 8px 12px;
+  background-color: #FFFFFF;
+  color: #1E293B;
+  font-size: 13px;
+}
+
+#controls-panel select:focus,
+#controls-panel input[type="range"]:focus {
+  border-color: #0EA5E9;
+  outline: none;
+}
+
+/* ============================================================================
+   Submit/Control Buttons
+   ============================================================================ */
+
+#submit-button-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+#run-research-button {
+  background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%);
+  color: #FFFFFF;
+  border: none;
+  border-radius: 6px;
+  padding: 12px 24px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(14, 165, 233, 0.3);
+}
+
+#run-research-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0284C7 0%, #0166A6 100%);
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.4);
+  transform: translateY(-1px);
+}
+
+#run-research-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+#run-research-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Error message styling */
+#error-message {
+  background-color: #FEE2E2;
+  border-left: 4px solid #EF4444;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  color: #991B1B;
+  font-size: 13px;
+  display: none;
+}
+
+#error-message.show {
+  display: block;
+}
+
+/* ============================================================================
+   Results Display Section
+   ============================================================================ */
+
+#results-section {
+  background-color: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 0;
+  margin-top: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+#results-header {
+  background: linear-gradient(135deg, #F0F9FF 0%, #F8FAFC 100%);
+  border-bottom: 1px solid #E2E8F0;
+  border-radius: 8px 8px 0 0;
+  padding: 20px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#results-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #082F49;
+}
+
+#results-count {
+  background-color: #0EA5E9;
+  color: #FFFFFF;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+#results-body {
+  padding: 24px;
+}
+
+/* Results summary */
+#results-summary {
+  background-color: #F8FAFC;
+  border-left: 4px solid #10B981;
+  border-radius: 4px;
+  padding: 16px;
+  margin-bottom: 20px;
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.6;
+}
+
+#results-summary strong {
+  color: #082F49;
+  font-weight: 600;
+}
+
+/* ============================================================================
+   Results Tabs
+   ============================================================================ */
+
+#results-tabs .tabitem {
+  border-top: 2px solid #E2E8F0;
+  padding-top: 20px;
+}
+
+#results-tabs .tabitem[data-tab="results"] {
+  border-top-color: #0EA5E9;
+}
+
+#results-tabs .tabitem[data-tab="sources"] {
+  border-top-color: #8B5CF6;
+}
+
+/* ============================================================================
+   Results List
+   ============================================================================ */
+
+#results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.result-item {
+  background-color: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  padding: 16px;
+  transition: all 0.2s ease;
+}
+
+.result-item:hover {
+  border-color: #0EA5E9;
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.1);
+}
+
+.result-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0EA5E9;
+  margin: 0 0 8px 0;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.result-title:hover {
+  color: #0284C7;
+  text-decoration: underline;
+}
+
+.result-snippet {
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.5;
+  margin: 8px 0;
+}
+
+.result-source {
+  font-size: 12px;
+  color: #94A3B8;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.result-source::before {
+  content: "🔗";
+  font-size: 11px;
+}
+
+/* ============================================================================
+   Sources Table
+   ============================================================================ */
+
+#sources-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+#sources-table thead {
+  background-color: #F1F5F9;
+  border-bottom: 2px solid #E2E8F0;
+}
+
+#sources-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  color: #082F49;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+
+#sources-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #E2E8F0;
+  color: #334155;
+}
+
+#sources-table tbody tr:hover {
+  background-color: #F8FAFC;
+}
+
+#sources-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Source link styling */
+#sources-table a {
+  color: #0EA5E9;
+  text-decoration: none;
+  transition: color 0.2s ease;
+  word-break: break-all;
+}
+
+#sources-table a:hover {
+  color: #0284C7;
+  text-decoration: underline;
+}
+
+/* ============================================================================
+   Loading and Empty States
+   ============================================================================ */
+
+#loading-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: #0EA5E9;
+}
+
+#empty-state {
+  text-align: center;
+  padding: 60px 40px;
+  color: #94A3B8;
+}
+
+#empty-state-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+#empty-state-text {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* ============================================================================
+   Responsive Design
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  #query-input-section {
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  #controls-panel {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+
+  #submit-button-row {
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  #results-header {
+    padding: 16px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  #results-body {
+    padding: 16px;
+  }
+
+  #results-list {
+    gap: 12px;
+  }
+
+  .result-item {
+    padding: 12px;
+  }
+
+  #sources-table {
+    font-size: 12px;
+  }
+
+  #sources-table th,
+  #sources-table td {
+    padding: 8px 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  #query-input-section {
+    border-left-width: 3px;
+    padding: 12px;
+  }
+
+  #query-input-wrapper textarea {
+    font-size: 13px;
+    padding: 10px 12px;
+  }
+
+  #run-research-button {
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+
+  .result-item {
+    padding: 10px;
+  }
+
+  .result-snippet {
+    font-size: 12px;
+  }
+}
+
+/* ============================================================================
+   Dark Mode Support
+   ============================================================================ */
+
+@media (prefers-color-scheme: dark) {
+  #query-input-section {
+    background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+    border-left-color: #38BDF8;
+  }
+
+  #query-input-section h3 {
+    color: #F1F5F9;
+  }
+
+  #query-input-wrapper textarea {
+    background-color: #1E293B;
+    border-color: #334155;
+    color: #F1F5F9;
+  }
+
+  #query-input-wrapper textarea:focus {
+    border-color: #38BDF8;
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1);
+  }
+
+  #query-input-wrapper textarea::placeholder {
+    color: #64748B;
+  }
+
+  #controls-panel {
+    background-color: #1E293B;
+    border-color: #334155;
+  }
+
+  #controls-panel label {
+    color: #CBD5E1;
+  }
+
+  #controls-panel select,
+  #controls-panel input[type="range"] {
+    border-color: #334155;
+    background-color: #0F172A;
+    color: #F1F5F9;
+  }
+
+  #run-research-button {
+    background: linear-gradient(135deg, #38BDF8 0%, #0EA5E9 100%);
+    box-shadow: 0 2px 6px rgba(56, 189, 248, 0.2);
+  }
+
+  #run-research-button:hover:not(:disabled) {
+    background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%);
+    box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+  }
+
+  #error-message {
+    background-color: #7F1D1D;
+    color: #FCA5A5;
+  }
+
+  #results-section {
+    background-color: #0F172A;
+    border-color: #334155;
+  }
+
+  #results-header {
+    background: linear-gradient(135deg, #1E293B 0%, #334155 100%);
+    border-bottom-color: #334155;
+  }
+
+  #results-header h2 {
+    color: #F1F5F9;
+  }
+
+  #results-body {
+    background-color: #0F172A;
+  }
+
+  #results-summary {
+    background-color: #1E293B;
+    border-left-color: #34D399;
+    color: #CBD5E1;
+  }
+
+  #results-summary strong {
+    color: #F1F5F9;
+  }
+
+  .result-item {
+    background-color: #1E293B;
+    border-color: #334155;
+  }
+
+  .result-item:hover {
+    border-color: #38BDF8;
+    box-shadow: 0 2px 8px rgba(56, 189, 248, 0.15);
+  }
+
+  .result-title {
+    color: #38BDF8;
+  }
+
+  .result-title:hover {
+    color: #7DD3FC;
+  }
+
+  .result-snippet {
+    color: #CBD5E1;
+  }
+
+  .result-source {
+    color: #64748B;
+  }
+
+  #sources-table thead {
+    background-color: #334155;
+    border-bottom-color: #475569;
+  }
+
+  #sources-table th {
+    color: #F1F5F9;
+  }
+
+  #sources-table td {
+    border-bottom-color: #334155;
+    color: #CBD5E1;
+  }
+
+  #sources-table tbody tr:hover {
+    background-color: #1E293B;
+  }
+
+  #sources-table a {
+    color: #38BDF8;
+  }
+
+  #sources-table a:hover {
+    color: #7DD3FC;
+  }
+
+  #empty-state {
+    color: #64748B;
+  }
+}

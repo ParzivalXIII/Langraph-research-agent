@@ -22,6 +22,7 @@ import gradio as gr
 import structlog
 
 from ui.client.api_client import ResearchClient
+from ui.theme import CalmResearchTheme
 from ui.components.controls import (
     create_depth_dropdown,
     create_max_sources_slider,
@@ -309,8 +310,10 @@ def build_app() -> gr.Blocks:
     
     Implements T009: Title, input section, three controls, submit button,
     tabbed output (Results, Diagnostics).
+    
+    Integrates CalmResearchTheme for professional calm aesthetics (Phase 3, T018).
     """
-    with gr.Blocks(title="Controlled Research Interface", theme=None) as app:
+    with gr.Blocks(title="Controlled Research Interface", theme=CalmResearchTheme()) as app:
         # Header
         gr.Markdown(
             """
@@ -322,11 +325,11 @@ def build_app() -> gr.Blocks:
         )
 
         # Input Section
-        with gr.Group():
+        with gr.Group(elem_id="query-input-section"):
             with gr.Row():
                 query_input = create_query_input()
 
-            with gr.Row():
+            with gr.Row(elem_id="controls-panel"):
                 depth_dropdown = create_depth_dropdown()
                 max_sources_slider = create_max_sources_slider()
                 time_range_dropdown = create_time_range_dropdown()
@@ -336,15 +339,17 @@ def build_app() -> gr.Blocks:
                 value="",
                 interactive=False,
                 visible=False,
+                elem_id="error-message",
             )
 
             # Submit button
-            with gr.Row():
+            with gr.Row(elem_id="submit-button-row"):
                 submit_btn = gr.Button(
                     "Run Research",
                     variant="primary",
                     interactive=True,
                     scale=1,
+                    elem_id="run-research-button",
                 )
                 clear_btn = gr.Button(
                     "Clear",
@@ -365,38 +370,42 @@ def build_app() -> gr.Blocks:
             )
 
         # Output Section: Results Tab
-        with gr.Tabs():
-            with gr.Tab():
-                with gr.Group():
-                    summary_output = gr.Markdown(value="")
+        with gr.Tabs(elem_id="results-tabs"):
+            with gr.Tab("Results"):
+                with gr.Group(elem_id="results-section"):
+                    summary_output = gr.Markdown(value="", elem_id="results-summary")
 
                     key_points_output = gr.Textbox(
                         lines=6,
                         interactive=False,
                         value="",
+                        elem_id="key-points-output",
                     )
 
-                with gr.Group():
+                with gr.Group(elem_id="sources-group"):
                     sources_table = gr.Dataframe(
                         headers=["Title", "URL", "Relevance"],
                         interactive=False,
                         type="numpy",
+                        elem_id="sources-table",
                     )
 
-                with gr.Group():
-                    contradictions_output = gr.Markdown(value="")
+                with gr.Group(elem_id="confidence-group"):
+                    contradictions_output = gr.Markdown(value="", elem_id="contradictions-output")
                     confidence_output = gr.Textbox(
                         value="",
                         interactive=False,
+                        elem_id="confidence-output",
                     )
 
-            with gr.Tab():
+            with gr.Tab("Diagnostics"):
                 diagnostics_output = gr.Textbox(
                     label="Request/Response Metadata",
                     lines=12,
                     interactive=False,
                     value="",
                     show_label=False,
+                    elem_id="diagnostics-output",
                 )
 
         # Event Handlers
