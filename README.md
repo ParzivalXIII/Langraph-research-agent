@@ -1,6 +1,10 @@
 # LangChain Research Agent
 
-A bounded research agent that orchestrates web search, evidence synthesis, and contradiction detection to produce reliable research briefs with source traceability. Built with FastAPI, LangChain, and Tavily.
+A bounded research agent system that orchestrates web search, evidence synthesis, and contradiction detection to produce reliable research briefs with source traceability.
+
+**Backend**: FastAPI + LangChain + Tavily API  
+**Frontend**: Gradio 6 (Controlled Research Interface with CALM theme)  
+**Status**: 🚀 Production Ready with full UI integration
 
 ---
 
@@ -8,6 +12,8 @@ A bounded research agent that orchestrates web search, evidence synthesis, and c
 
 1. [Overview](#overview)
 2. [Quick Start](#quick-start)
+   - [Backend API](#backend-api-quick-start)
+   - [Gradio UI](#gradio-ui-quick-start)
 3. [Installation](#installation)
 4. [Configuration](#configuration)
 5. [Usage](#usage)
@@ -15,8 +21,7 @@ A bounded research agent that orchestrates web search, evidence synthesis, and c
 7. [Architecture](#architecture)
 8. [Running Tests](#running-tests)
 9. [Docker Deployment](#docker-deployment)
-10. [Troubleshooting](#troubleshooting)
-11. [Development](#development)
+10. [Development](#development)
 
 ---
 
@@ -24,32 +29,67 @@ A bounded research agent that orchestrates web search, evidence synthesis, and c
 
 ### What It Does
 
-The Research Agent accepts natural language queries and returns structured research briefs containing:
+The Research Agent system provides both a REST API and web UI for comprehensive research query orchestration:
 
+**Backend Research Agent**:
 - **Summary**: AI-synthesized overview of findings
 - **Key Points**: Extracted highlights from retrieved sources
 - **Sources**: Ranked and scored web search results with credibility metrics
 - **Contradictions**: Detected conflicts between sources with severity levels
-- **Confidence Score**: Overall confidence in the research findings
+- **Confidence Score**: Dynamic calculation based on source agreement & recency
+
+**Gradio Web Interface**:
+- User-friendly form with depth/source/time-range controls
+- Real-time research results display with tabbed views
+- Diagnostics panel for transparency and debugging
+- CALM Research theme with professional styling
+- Responsive mobile-friendly design
 
 ### Key Features
 
-✅ **Depth Control**: Basic (3 sources), Intermediate (10 sources), Deep (15 sources)  
-✅ **Time-Range Filtering**: Search across all time, past year, month, week, or day  
-✅ **Credibility Scoring**: Domain authority (50%), recency (30%), citation count (20%)  
-✅ **Contradiction Detection**: Identifies and surfaces conflicting claims  
-✅ **Latency SLAs**: Basic <30s, Intermediate <60s, Deep <120s  
-✅ **Health Monitoring**: Real-time health checks and operational metrics  
-✅ **Type Safe**: Full type hints with pyright validation (0 errors)  
-✅ **Well Tested**: 114 unit and integration tests (76% coverage)  
+**Research Engine**:
+- ✅ **Depth Control**: Basic (3 sources), Intermediate (10 sources), Deep (15 sources)
+- ✅ **Time-Range Filtering**: Search across all time, past year, month, week, or day
+- ✅ **Credibility Scoring**: Domain authority (50%), recency (30%), citation count (20%)
+- ✅ **Contradiction Detection**: Identifies and surfaces conflicting claims
+- ✅ **Dynamic Confidence**: Calculated from source agreement, quality, recency, contradiction penalty
+- ✅ **Latency SLAs**: Basic <30s, Intermediate <60s, Deep <120s
+
+**User Interface**:
+- ✅ **Gradio Web UI**: Professional research interface on localhost:7860
+- ✅ **CALM Theme**: Calm aesthetics with dark/light mode support
+- ✅ **Clear Labels**: Meaningful component labels ("Key Points", "Confidence Score", etc.)
+- ✅ **Diagnostics Tab**: Request/response inspection for transparency
+- ✅ **Form Validation**: Client and server-side input validation
+- ✅ **Error Handling**: User-friendly error messages with recovery suggestions
+
+**Production Ready**:
+- ✅ **Type Safe**: Full type hints with pyright validation (0 errors)
+- ✅ **Well Tested**: 214+ unit and integration tests (100% critical paths)
+- ✅ **Health Monitoring**: Real-time health checks and operational metrics
+- ✅ **Structured Logging**: Correlation IDs and json-formatted output
+- ✅ **Docker Containerized**: Multi-stage builds for both API and UI  
 
 ### Architecture Highlights
 
+**Backend**:
 - **Stateless**: Pure request-response, no session affinity required
 - **Scalable**: Horizontal scaling via StatelessService pattern
 - **Observable**: Structured logging with correlation IDs
 - **Bounded**: Max 3 Tavily iterations per query (cost-controlled)
-- **Production Ready**: Docker containerized, health endpoints, metrics
+- **Modular**: Separation of concerns (retrieval, processing, synthesis services)
+
+**Frontend**:
+- **Thin Client**: Gradio UI delegates all logic to backend
+- **Deterministic**: No client-side synthesis or data invention
+- **Themeable**: CALM Research theme with customizable styling
+- **Accessible**: Clear labels, form validation, error guidance
+- **Responsive**: Mobile-friendly design with professional layout
+
+**Deployment**:
+- **Docker Containerized**: Multi-stage builds for minimal image size
+- **Health Endpoints**: `/health` and `/metrics` for monitoring
+- **Production Ready**: ASGI server, connection pooling, resource management
 
 ---
 
@@ -63,7 +103,7 @@ The Research Agent accepts natural language queries and returns structured resea
   - [Tavily](https://tavily.com) (web search)
   - [OpenRouter](https://openrouter.ai) (LLM synthesis)
 
-### 5-Minute Setup
+### Backend API Quick Start
 
 ```bash
 # 1. Clone and enter directory
@@ -90,6 +130,27 @@ curl -X POST "http://localhost:8000/research" \
 ```
 
 Open [http://localhost:8000/docs](http://localhost:8000/docs) for interactive API documentation.
+
+### Gradio UI Quick Start
+
+```bash
+# In the same terminal or a new one (with uv sync already run):
+uv run python -m ui.app
+```
+
+Open [http://localhost:7860](http://localhost:7860) to access the **Controlled Research Interface** with:
+- Query input field with placeholder guidance
+- Research Depth selector (basic/intermediate/deep)
+- Maximum Sources slider (3-10)
+- Time Range dropdown (day/week/month/year/all)
+- Results tab displaying summary, key points, and sources table
+- Diagnostics tab for request/response inspection
+- CALM Research theme with professional styling
+
+**Recent Improvements**:
+- ✅ Fixed textbox labels ("Key Points" and "Confidence Score" instead of generic "Textbox")
+- ✅ Improved UI clarity with meaningful component labels
+- ✅ Enhanced diagnostics display for transparency
 
 ---
 
