@@ -46,6 +46,16 @@ class Settings(BaseSettings):
     enable_persistence: bool = False
     enable_caching: bool = False
 
+    # Web Fetch Tool Configuration (Phase 2+)
+    web_fetch_enabled: bool = True
+    web_fetch_max_concurrency: int = 5
+    web_fetch_max_retries: int = 3
+    web_fetch_retry_backoff: float = 1.0
+    web_fetch_timeout_seconds: int = 15
+    web_fetch_max_content_chars: int = 50000
+    web_fetch_headless_enabled: bool = False
+    web_fetch_per_domain_rate_limit: float = 1.0  # requests per second
+
     # Operational Constraints
     max_sources_default: int = 10
     max_sources_limit: int = 50

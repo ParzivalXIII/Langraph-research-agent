@@ -62,14 +62,14 @@ Define all Pydantic v2 schemas and error types. No business logic yet; pure data
 
 ### Tasks
 
-- [ ] T008 [P] Implement `WebFetchConfig` schema in `app/schemas/web_fetch.py` with fields: `output_format`, `use_headless`, `max_content_chars`, `timeout_seconds`, `include_links`
-- [ ] T009 [P] Implement `WebFetchRequest` schema with `urls` list validation (min 1, max 50) and nested `config`
-- [ ] T010 [P] Implement `FetchedPage` schema with fields: `url`, `title`, `content`, `content_type`, `fetched_at`, `http_status`, `processing_ms`, `content_length` (int ≥0), `content_truncated` (bool), `empty_extraction` (bool), `error`; add `succeeded` property
-- [ ] T011 [P] Implement `WebFetchResult` schema with fields: `requested_count`, `fetched_count`, `failed_count`, `total_ms`, `pages`; add count consistency validator
-- [ ] T012 Add `WebFetchError(ExternalServiceError)` to `app/core/errors.py` with `details["reason"]` field for error classifications
-- [ ] T013 Add 8 new optional settings fields to `Settings` in `app/core/config.py` (web_fetch_max_concurrency, etc.)
-- [ ] T014 [P] Write comprehensive Pydantic v2 unit tests in `tests/unit/test_web_fetch_schemas.py` covering happy path, validation errors, JSON round-trip, edge cases
-- [ ] T015 Validate JSON Schema contracts match Pydantic schemas: `contracts/web-fetch-request.json` vs `WebFetchRequest`, `contracts/web-fetch-result.json` vs `WebFetchResult`
+- [X] T008 [P] Implement `WebFetchConfig` schema in `app/schemas/web_fetch.py` with fields: `output_format`, `use_headless`, `max_content_chars`, `timeout_seconds`, `include_links`
+- [X] T009 [P] Implement `WebFetchRequest` schema with `urls` list validation (min 1, max 50) and nested `config`
+- [X] T010 [P] Implement `FetchedPage` schema with fields: `url`, `title`, `content`, `content_type`, `fetched_at`, `http_status`, `processing_ms`, `content_length` (int ≥0), `content_truncated` (bool), `empty_extraction` (bool), `error`; add `succeeded` property
+- [X] T011 [P] Implement `WebFetchResult` schema with fields: `requested_count`, `fetched_count`, `failed_count`, `total_ms`, `pages`; add count consistency validator
+- [X] T012 Add `WebFetchError(ExternalServiceError)` to `app/core/errors.py` with `details["reason"]` field for error classifications
+- [X] T013 Add 8 new optional settings fields to `Settings` in `app/core/config.py` (web_fetch_max_concurrency, etc.)
+- [X] T014 [P] Write comprehensive Pydantic v2 unit tests in `tests/unit/test_web_fetch_schemas.py` covering happy path, validation errors, JSON round-trip, edge cases
+- [X] T015 Validate JSON Schema contracts match Pydantic schemas: `contracts/web-fetch-request.json` vs `WebFetchRequest`, `contracts/web-fetch-result.json` vs `WebFetchResult`
 
 ---
 

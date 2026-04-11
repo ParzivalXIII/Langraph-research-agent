@@ -112,6 +112,28 @@ class LLMError(ExternalServiceError):
         super().__init__(message, "OpenRouter LLM", status_code, details)
 
 
+class WebFetchError(ExternalServiceError):
+    """Web fetch operation failed."""
+
+    def __init__(
+        self,
+        message: str,
+        status_code: Optional[int] = None,
+        details: Optional[dict] = None,
+    ):
+        """Initialize WebFetchError.
+
+        Args:
+            message: Error message
+            status_code: HTTP status code if applicable
+            details: Additional context including 'reason' field for error classifications
+                    (e.g., 'timeout', 'http_error', 'empty_extraction', 'unsupported_content_type')
+        """
+        if details is None:
+            details = {}
+        super().__init__(message, "Web Fetch", status_code, details)
+
+
 class SynthesisError(AppError):
     """Synthesis service internal error (used for fallback chain)."""
 

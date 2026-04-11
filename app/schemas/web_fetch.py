@@ -6,7 +6,7 @@ Pydantic v2 models for WebFetchTool request/response contracts.
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class WebFetchConfig(BaseModel):
@@ -21,17 +21,29 @@ class WebFetchConfig(BaseModel):
         description="Use Playwright headless browser for JS-rendered pages",
     )
     max_content_chars: int = Field(
-        default=50000,
-        description="Max characters to extract from page content",
+        default=5000,
+        ge=100,
+        le=50000,
+        description="Max characters to extract from page content (100-50000)",
     )
-    timeout_seconds: int = Field(
-        default=15,
-        description="HTTP request timeout in seconds",
+    timeout_seconds: float = Field(
+        default=15.0,
+        ge=1.0,
+        le=120.0,
+        description="HTTP request timeout in seconds (1-120)",
     )
     include_links: bool = Field(
-        default=True,
+        default=False,
         description="Include extracted links in JSON output",
     )
+
+    @field_validator("output_format")
+    @classmethod
+    def validate_output_format(cls, v: str) -> str:
+        """Validate output_format is either markdown or json."""
+        if v not in ("markdown", "json"):
+            raise ValueError("output_format must be 'markdown' or 'json'")
+        return v
 
 
 class WebFetchRequest(BaseModel):
@@ -47,6 +59,15 @@ class WebFetchRequest(BaseModel):
         description="Fetch configuration",
     )
 
+    @field_validator("urls")
+    @classmethod
+    def validate_urls(cls, v: list[str]) -> list[str]:
+        """Validate URLs are non-empty strings."""
+        for url in v:
+            if not url or not isinstance(url, str):
+                raise ValueError("All URLs must be non-empty strings")
+        return v
+
 
 class FetchedPage(BaseModel):
     """Result of fetching a single URL."""
@@ -59,7 +80,9 @@ class FetchedPage(BaseModel):
     )
     fetched_at: datetime = Field(description="When the page was fetched")
     http_status: Optional[int] = Field(default=None, description="HTTP status code")
-    processing_ms: int = Field(default=0, description="Processing time in milliseconds")
+    processing_ms: int = Field(
+        default=0, ge=0, description="Processing time in milliseconds"
+    )
     content_length: int = Field(
         default=0, ge=0, description="Length of extracted content in bytes"
     )
@@ -69,7 +92,9 @@ class FetchedPage(BaseModel):
     empty_extraction: bool = Field(
         default=False, description="Whether extraction produced no content"
     )
-    error: Optional[str] = Field(default=None, description="Error reason if fetch failed")
+    error: Optional[str] = Field(
+        default=None, description="Error reason if fetch failed"
+    )
 
     @property
     def succeeded(self) -> bool:
@@ -80,8 +105,23 @@ class FetchedPage(BaseModel):
 class WebFetchResult(BaseModel):
     """Aggregate result from batch fetch operation."""
 
-    requested_count: int = Field(description="Number of URLs requested")
-    fetched_count: int = Field(description="Number of URLs fetched successfully")
-    failed_count: int = Field(description="Number of URLs that failed")
-    total_ms: int = Field(description="Total time in milliseconds")
+    requested_count: int = Field(ge=0, description="Number of URLs requested")
+    fetched_count: int = Field(ge=0, description="Number of URLs fetched successfully")
+    failed_count: int = Field(ge=0, description="Number of URLs that failed")
+    total_ms: int = Field(ge=0, description="Total time in milliseconds")
     pages: list[FetchedPage] = Field(description="Fetched page results")
+
+    @model_validator(mode="after")
+    def validate_count_consistency(self) -> "WebFetchResult":
+        """Validate that counts are consistent with pages list."""
+        if self.fetched_count + self.failed_count != self.requested_count:
+            raise ValueError(
+                f"Count mismatch: fetched_count ({self.fetched_count}) + "
+                f"failed_count ({self.failed_count}) != requested_count ({self.requested_count})"
+            )
+        if len(self.pages) != self.requested_count:
+            raise ValueError(
+                f"Pages count mismatch: {len(self.pages)} pages != "
+                f"requested_count ({self.requested_count})"
+            )
+        return self
