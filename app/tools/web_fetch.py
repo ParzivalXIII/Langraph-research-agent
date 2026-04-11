@@ -14,7 +14,6 @@ from bs4 import BeautifulSoup
 from markdownify import markdownify
 
 from app.core.config import Settings, get_settings
-from app.core.errors import WebFetchError
 from app.core.logging import get_logger
 from app.schemas.web_fetch import (
     FetchedPage,
@@ -125,7 +124,9 @@ class WebFetchTool:
             # Extract content based on format
             try:
                 if config.output_format == "markdown":
-                    content = await self._extract_markdown(content_bytes, config.max_content_chars)
+                    content = await self._extract_markdown(
+                        content_bytes, config.max_content_chars
+                    )
                 else:
                     content_dict = await self._extract_json(
                         content_bytes,
@@ -218,7 +219,7 @@ class WebFetchTool:
                 processing_ms=elapsed_ms,
                 error="http_error",
             )
-        except httpx.RedirectLoop:
+        except httpx.TooManyRedirects:
             elapsed_ms = int((time.monotonic() - start_time) * 1000)
             self.logger.info(
                 "web_fetch_error",

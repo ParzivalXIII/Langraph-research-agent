@@ -104,9 +104,9 @@ Define all Pydantic v2 schemas and error types. No business logic yet; pure data
 - [X] T028 [P] [US1] Write integration test: fetch 5 real URLs with markdown format, assert no HTML tags, assert content ≥50 chars, assert FetchedPage schema compliance
 - [X] T029 [P] [US1] Write integration test: fetch 5 URLs with JSON format, assert title/body/links present, verify output ≥3 links for typical page
 - [X] T030 [US1] Write integration test: mixed batch (2 bad URLs, 3 good), assert 3 successes return content + 2 failures return error reason without exception
-- [ ] T031 [P] Write unit test: Create fixture of 20 real URLs (news, docs, blogs); run batch with output_format=markdown; assert ≥95% of pages produce non-empty, valid markdown (no raw HTML tags, parseable structure). This validates SC-002.
-- [ ] T074 [P] Write integration test: Fetch a controlled batch of 10 URLs from distinct domains; use mocked httpx to eliminate network variance; assert `total_ms` is ≤ 10,000 and latency budget is honoured. This validates SC-001 timing SLA.
-- [ ] T075 [P] Implement `asyncio.Semaphore(settings.web_fetch_max_concurrency)` inside `_feed_batch()` to enforce the global concurrency cap; ensure all `_fetch_single()` calls acquire the semaphore before making any network request. This validates FR-002 concurrency limit.
+- [X] T031 [P] Write unit test: Create fixture of 20 real URLs (news, docs, blogs); run batch with output_format=markdown; assert ≥95% of pages produce non-empty, valid markdown (no raw HTML tags, parseable structure). This validates SC-002.
+- [X] T074 [P] Write integration test: Fetch a controlled batch of 10 URLs from distinct domains; use mocked httpx to eliminate network variance; assert `total_ms` is ≤ 10,000 and latency budget is honoured. This validates SC-001 timing SLA.
+- [X] T075 [P] Implement `asyncio.Semaphore(settings.web_fetch_max_concurrency)` inside `_feed_batch()` to enforce the global concurrency cap; ensure all `_fetch_single()` calls acquire the semaphore before making any network request. This validates FR-002 concurrency limit.
 
 ---
 

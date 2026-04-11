@@ -116,8 +116,8 @@ class WebFetchResult(BaseModel):
         """Validate that counts are consistent with pages list."""
         if self.fetched_count + self.failed_count != self.requested_count:
             raise ValueError(
-                f"Count mismatch: fetched_count ({self.fetched_count}) + "
-                f"failed_count ({self.failed_count}) != requested_count ({self.requested_count})"
+                f"Count mismatch: fetched ({self.fetched_count}) + "
+                f"failed ({self.failed_count}) != requested ({self.requested_count})"
             )
         if len(self.pages) != self.requested_count:
             raise ValueError(
