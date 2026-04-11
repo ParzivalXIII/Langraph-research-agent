@@ -125,3 +125,173 @@ uv run pytest -v
 | `WEB_FETCH_MAX_RESPONSE_SIZE` | `5242880` | Max bytes per response (5 MB) |
 | `WEB_FETCH_HEADLESS_ENABLED` | `false` | Enable Playwright globally |
 | `WEB_FETCH_TIMEOUT` | `15.0` | Per-request timeout in seconds |
+
+---
+
+## Phase 6: RetrievalService Integration & Enrichment
+
+### Overview
+
+Phase 6 integrates WebFetchTool into the retrieval pipeline, allowing automatic enrichment of source snippets with full-page content from Tavily search results.
+
+### Key Features
+
+- **Optional enrichment**: `retrieve_sources(..., enrich=True)` to enable
+- **Graceful degradation**: Enrichment failures don't break the pipeline
+- **Partial success handling**: Failed URLs return original Tavily snippet
+- **Field mapping**: 
+  - `FetchedPage.title` → `SourceRecord.title` (if not empty)
+  - `FetchedPage.content` → `SourceRecord.snippet` (truncated to 5000 chars)
+  - `FetchedPage.fetched_at` → `SourceRecord.retrieved_at` (ISO 8601)
+
+### Usage
+
+#### Disable enrichment (default)
+```python
+sources = await retrieval_service.retrieve_sources(
+    query="AI trends 2024",
+    depth="intermediate",
+)
+# Returns Tavily-only results (fast, no extra I/O)
+```
+
+#### Enable enrichment
+```python
+sources = await retrieval_service.retrieve_sources(
+    query="AI trends 2024",
+    depth="intermediate",
+    enrich=True,  # Fetch full-page content for each source
+)
+# Returns enriched sources with full article content
+# More details, but slower (~5-10 seconds for 10 URLs)
+```
+
+#### With ResearchAgent
+```python
+# ResearchAgent automatically uses enriched sources if available
+agent = ResearchAgent()
+brief = await agent.process_query(
+    query="what is quantum computing?",
+    enable_web_enrichment=True,  # Triggers enrich=True in RetrievalService
+)
+```
+
+---
+
+## Common Issues & Troubleshooting
+
+### Issue: Enrichment is very slow
+
+**Cause**: Fetching 10+ URLs sequentially. Phase 6 may fetch URLs one at a time.  
+**Fix**: 
+- Reduce `max_sources` (e.g., `max_sources=5`)
+- Increase `web_fetch_max_concurrency` (default: 5, max safe: 10)
+- Use `depth="basic"` (5 sources instead of 10)
+
+```python
+sources = await svc.retrieve_sources(
+    query="...",
+    max_sources=5,
+    enrich=True,
+)
+```
+
+### Issue: "headless_unavailable" errors
+
+**Cause**: Playwright not installed or Chromium not found.  
+**Fix**:
+```bash
+uv add playwright
+uv run playwright install chromium
+```
+
+Then set global toggle:
+```bash
+WEB_FETCH_HEADLESS_ENABLED=true uv run pytest ...
+```
+
+### Issue: Enrichment returns empty snippets
+
+**Cause**: Fetched pages had empty or unparseable content.  
+**Fix**: Check `FetchedPage.error` in logs:
+```python
+result = await tool.fetch_batch(request)
+for page in result.pages:
+    if page.empty_extraction:
+        print(f"Empty content: {page.url} (HTTP {page.http_status})")
+```
+
+### Issue: URL validation errors
+
+**Cause**: Invalid URL format in batch.  
+**Fix**: Ensure all URLs start with `http://` or `https://`:
+```python
+# WRONG
+request = WebFetchRequest(urls=["example.com"])  # ❌ Missing scheme
+
+# RIGHT
+request = WebFetchRequest(urls=["https://example.com"])  # ✅
+```
+
+### Issue: Batch size limit exceeded
+
+**Cause**: Requesting >50 URLs in a single batch.  
+**Fix**: Split into multiple batches:
+```python
+# Process in chunks of 25
+for chunk in batched(urls, 25):
+    result = await tool.fetch_batch(
+        WebFetchRequest(urls=chunk)
+    )
+```
+
+---
+
+## Monitoring & Logging
+
+All operations are logged with structured fields for observability:
+
+```python
+# Watch for enrichment metrics
+logger.info(
+    "enrichment_complete",
+    sources_count=10,
+    fetched_count=9,
+    failed_count=1,
+)
+
+# Check for partial failures
+logger.debug(
+    "enrichment_skipped_fetch_failed",
+    url="https://...",
+    error="timeout"
+)
+```
+
+Log levels:
+- **INFO**: Major pipeline events (retrieval_start, enrichment_complete)
+- **WARNING**: Low-credibility sources, failed enrichment attempts
+- **DEBUG**: Per-URL enrichment details, field mapping
+
+---
+
+## Architecture
+
+```
+RetrievalService.retrieve_sources(enrich=True)
+    ↓
+1. Fetch from Tavily (existing)
+2. Apply credibility scoring (existing)
+3. IF enrich=True:
+    a. Collect URLs from sources
+    b. Call WebFetchTool.fetch_batch()
+    c. Map FetchedPage fields to SourceRecord
+    d. Handle partial failures gracefully
+4. Return enriched SourceRecord list
+```
+
+Key design decisions:
+- **Enrichment is opt-in**: Default `enrich=False` for backward compatibility
+- **Failures are graceful**: Failed URL fetches return original Tavily snippet
+- **Rate limiting respected**: Per-domain rate limits apply during enrichment
+- **No breaking changes**: All existing RetrievalService calls continue to work

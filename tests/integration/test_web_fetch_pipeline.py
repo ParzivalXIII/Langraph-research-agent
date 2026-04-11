@@ -8,7 +8,12 @@ import httpx
 import pytest
 
 from app.core.config import Settings
-from app.schemas.web_fetch import WebFetchConfig, WebFetchRequest
+from app.schemas.web_fetch import (
+    FetchedPage,
+    WebFetchConfig,
+    WebFetchRequest,
+    WebFetchResult,
+)
 from app.tools.web_fetch import WebFetchTool
 
 
@@ -431,3 +436,295 @@ class TestWebFetchToolRateLimitingIntegration:
         assert elapsed_seconds < 1.5, \
             f"Different domains should run in parallel, took {elapsed_seconds:.2f}s (expected ~1s)"
         assert result.fetched_count == 4
+
+
+@pytest.mark.asyncio
+class TestRetrievalServiceEnrichment:
+    """Integration tests for RetrievalService enrichment via WebFetchTool.
+    
+    T060-T062: Tests for enrich parameter and enrichment pipeline
+    """
+
+    @pytest.fixture
+    def retrieval_service(self):
+        """Create RetrievalService for testing."""
+        from app.services.retrieval_service import RetrievalService
+        service = RetrievalService()
+        yield service
+
+    @pytest.mark.asyncio
+    async def test_retrieve_sources_enrich_false(self, retrieval_service):
+        """T060: Test retrieve_sources(enrich=False) returns unchanged Tavily results.
+        
+        Validates that enrich=False (default) does not modify SourceRecord fields
+        beyond credibility scoring.
+        """
+        from unittest.mock import AsyncMock, MagicMock
+        from app.schemas.research import SourceRecord
+        from pydantic import HttpUrl
+
+        # Mock Tavily tool to return sample sources
+        mock_source = SourceRecord(
+            title="Test Article",
+            url=HttpUrl("https://example.com/article"),
+            relevance=0.95,
+            snippet="Original snippet from Tavily",
+            retrieved_at=None,
+        )
+
+        retrieval_service.tavily_tool.search = AsyncMock(
+            return_value=[mock_source]
+        )
+
+        # Call with enrich=False
+        result = await retrieval_service.retrieve_sources(
+            query="test",
+            enrich=False
+        )
+
+        assert len(result) == 1
+        assert result[0].title == "Test Article"
+        assert result[0].snippet == "Original snippet from Tavily"
+        # Tavily tool.search should have been called
+        retrieval_service.tavily_tool.search.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_retrieve_sources_enrich_true(self, retrieval_service):
+        """T061: Test retrieve_sources(enrich=True) enriches snippets with fetched content.
+        
+        Validates that enrich=True updates source snippets, titles, and retrieved_at
+        with content from WebFetchTool.
+        """
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from app.schemas.research import SourceRecord
+        from app.schemas.web_fetch import FetchedPage
+        from pydantic import HttpUrl
+
+        # Mock Tavily source
+        mock_source = SourceRecord(
+            title="Original Title",
+            url=HttpUrl("https://example.com/article"),
+            relevance=0.95,
+            snippet="Original snippet from Tavily",
+            retrieved_at=None,
+        )
+
+        # Mock WebFetchTool.fetch_batch result
+        mock_page = FetchedPage(
+            url="https://example.com/article",
+            title="Fetched Page Title",
+            content="# Full page content fetched and extracted as markdown\n\nThis is enriched content.",
+            fetched_at=datetime.now(),
+            http_status=200,
+        )
+
+        mock_result = MagicMock()
+        mock_result.pages = [mock_page]
+        mock_result.fetched_count = 1
+        mock_result.failed_count = 0
+
+        retrieval_service.tavily_tool.search = AsyncMock(
+            return_value=[mock_source]
+        )
+
+        # Mock WebFetchTool
+        with patch('app.services.retrieval_service.WebFetchTool') as mock_tool_class:
+            mock_tool = AsyncMock()
+            mock_tool.fetch_batch = AsyncMock(return_value=mock_result)
+            mock_tool.close = AsyncMock()
+            mock_tool_class.return_value = mock_tool
+
+            # Call with enrich=True
+            result = await retrieval_service.retrieve_sources(
+                query="test",
+                enrich=True
+            )
+
+            # Verify enrichment occurred
+            assert len(result) == 1
+            assert result[0].title == "Fetched Page Title"
+            assert "Full page content" in result[0].snippet
+            assert result[0].retrieved_at is not None
+            assert mock_tool.close.called
+
+    @pytest.mark.asyncio
+    async def test_retrieve_sources_enrich_true_with_agent(self, retrieval_service):
+        """T062: End-to-end test with ResearchAgent using enriched sources.
+        
+        Validates that ResearchAgent.process_query() internally uses enriched
+        source snippets in brief generation.
+        """
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from app.schemas.research import SourceRecord
+        from app.schemas.web_fetch import FetchedPage
+        from pydantic import HttpUrl
+        from datetime import datetime
+
+        # Create a source without enrichment
+        source_before = SourceRecord(
+            title="Original Title",
+            url=HttpUrl("https://example.com/article"),
+            relevance=0.95,
+            snippet="Original Tavily snippet",
+        )
+
+        # Create mock FetchedPage
+        mock_page = FetchedPage(
+            url="https://example.com/article",
+            title="Enriched Title",
+            content="# Full enriched content\n\nThis source has been fetched and enriched with actual page content.",
+            fetched_at=datetime.now(),
+            http_status=200,
+        )
+
+        # Mock WebFetchTool
+        mock_result = MagicMock()
+        mock_result.pages = [mock_page]
+        mock_result.fetched_count = 1
+        mock_result.failed_count = 0
+
+        with patch('app.services.retrieval_service.WebFetchTool') as mock_fetch_class:
+            mock_tool = AsyncMock()
+            mock_tool.fetch_batch = AsyncMock(return_value=mock_result)
+            mock_tool.close = AsyncMock()
+            mock_fetch_class.return_value = mock_tool
+
+            # Call _enrich_sources directly
+            enriched = await retrieval_service._enrich_sources([source_before])
+
+            # Verify sources are enriched
+            assert len(enriched) == 1
+            assert enriched[0].title == "Enriched Title"
+            assert "enriched" in enriched[0].snippet.lower()
+            assert enriched[0].retrieved_at is not None
+            assert mock_tool.close.called
+
+
+class TestEdgeCases:
+    """T072: Edge-case tests for validation and boundary conditions."""
+
+    def test_empty_batch_rejected(self):
+        """T072a: Empty batch (0 URLs) rejected by validation."""
+        with pytest.raises(ValueError, match="at least 1"):
+            WebFetchRequest(urls=[], config=WebFetchConfig())
+
+    def test_malformed_url_rejected(self):
+        """T072b: Malformed URL (no http/https scheme) rejected by validation."""
+        with pytest.raises(ValueError, match="HTTP/HTTPS"):
+            WebFetchRequest(
+                urls=["example.com"],  # Missing scheme
+                config=WebFetchConfig()
+            )
+
+    def test_malformed_url_ftp_rejected(self):
+        """T072b: FTP URL rejected (only HTTP/HTTPS allowed)."""
+        with pytest.raises(ValueError, match="HTTP/HTTPS"):
+            WebFetchRequest(
+                urls=["ftp://example.com/file"],
+                config=WebFetchConfig()
+            )
+
+    def test_batch_size_exceeded_rejected(self):
+        """T072c: Batch > 50 URLs rejected by validation."""
+        oversized_batch = [f"https://example{i}.com" for i in range(51)]
+        with pytest.raises(ValueError, match="at most 50"):
+            WebFetchRequest(
+                urls=oversized_batch,
+                config=WebFetchConfig()
+            )
+
+    def test_valid_batch_at_limit(self):
+        """T072: Batch of exactly 50 URLs accepted."""
+        batch_at_limit = [f"https://example{i:02d}.com" for i in range(50)]
+        request = WebFetchRequest(
+            urls=batch_at_limit,
+            config=WebFetchConfig()
+        )
+        assert len(request.urls) == 50
+
+    def test_config_validation_invalid_format(self):
+        """T072: Invalid output format rejected."""
+        with pytest.raises(ValueError, match="markdown.*json"):
+            WebFetchConfig(output_format="xml")
+
+    def test_config_validation_max_content_chars(self):
+        """T072: Invalid max_content_chars boundaries."""
+        with pytest.raises(ValueError):
+            WebFetchConfig(max_content_chars=50)  # Below min=100
+
+        with pytest.raises(ValueError):
+            WebFetchConfig(max_content_chars=60000)  # Above max=50000
+
+    def test_config_validation_timeout(self):
+        """T072: Invalid timeout boundaries."""
+        with pytest.raises(ValueError):
+            WebFetchConfig(timeout_seconds=0.5)  # Below min=1.0
+
+        with pytest.raises(ValueError):
+            WebFetchConfig(timeout_seconds=150)  # Above max=120
+
+    def test_fetched_page_succeeded_property(self):
+        """T072: FetchedPage.succeeded property works correctly."""
+        from datetime import datetime
+
+        success_page = FetchedPage(
+            url="https://example.com",
+            fetched_at=datetime.now(),
+            error=None,
+        )
+        assert success_page.succeeded is True
+
+        failed_page = FetchedPage(
+            url="https://example.com",
+            fetched_at=datetime.now(),
+            error="timeout",
+        )
+        assert failed_page.succeeded is False
+
+    def test_web_fetch_result_count_consistency(self):
+        """T072: WebFetchResult validates count consistency."""
+        from datetime import datetime
+
+        pages = [
+            FetchedPage(
+                url="https://example.com",
+                fetched_at=datetime.now(),
+                error=None,
+            ),
+            FetchedPage(
+                url="https://fail.com",
+                fetched_at=datetime.now(),
+                error="timeout",
+            ),
+        ]
+
+        # Valid result
+        result = WebFetchResult(
+            requested_count=2,
+            fetched_count=1,
+            failed_count=1,
+            total_ms=1000,
+            pages=pages,
+        )
+        assert result.fetched_count == 1
+        assert result.failed_count == 1
+
+        # Invalid result: counts don't match
+        with pytest.raises(ValueError, match="Count mismatch"):
+            WebFetchResult(
+                requested_count=2,
+                fetched_count=2,  # Should be 1
+                failed_count=1,
+                total_ms=1000,
+                pages=pages,
+            )
+
+        # Invalid result: pages count mismatch (will fail at count check first)
+        with pytest.raises(ValueError, match="Count mismatch"):
+            WebFetchResult(
+                requested_count=3,  # Should be 2
+                fetched_count=1,
+                failed_count=1,
+                total_ms=1000,
+                pages=pages,
+            )

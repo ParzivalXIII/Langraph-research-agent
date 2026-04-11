@@ -30,7 +30,9 @@ from datetime import datetime, timezone
 
 from app.core.logging import get_logger
 from app.schemas.research import SourceRecord
+from app.schemas.web_fetch import WebFetchConfig, WebFetchRequest
 from app.tools.tavily import TavilyTool
+from app.tools.web_fetch import WebFetchTool
 
 logger = get_logger(__name__)
 
@@ -82,6 +84,8 @@ class RetrievalService:
         depth: str = "intermediate",
         max_sources: int = 10,
         time_range: str = "all",
+        *,
+        enrich: bool = False,
     ) -> list[SourceRecord]:
         """Retrieve sources from Tavily and apply credibility scoring.
 
@@ -93,9 +97,11 @@ class RetrievalService:
             depth: Search depth (basic/intermediate/deep) - maps to Tavily search_depth
             max_sources: Maximum sources to retrieve (overrides depth default if larger)
             time_range: Time range filter (day/week/month/year/all) - filters source recency
+            enrich: If True, fetch and enrich source snippets with full page content (optional, default: False)
 
         Returns:
             List of SourceRecords with credibility scores applied (at most max_sources items)
+            If enrich=True, additionally enriches snippets with full-page content
 
         Raises:
             ExternalServiceError: If source retrieval fails
@@ -159,13 +165,26 @@ class RetrievalService:
                 query=query[:100],
                 sources_count=len(scored_sources),
                 avg_credibility=(
-                    sum(s.credibility_score or 0.0 for s in scored_sources)
-                    / len(scored_sources)
+                    sum(s.credibility_score or 0.0 for s in scored_sources) / len(scored_sources)
                     if scored_sources
                     else 0.0
                 ),
                 time_range=time_range,
+                enrich=enrich,
             )
+
+            # Enrich sources with full-page content if requested
+            if enrich and scored_sources:
+                try:
+                    scored_sources = await self._enrich_sources(scored_sources)
+                except Exception as exc:
+                    logger.warning(
+                        "enrichment_failed",
+                        error=str(exc),
+                        sources_count=len(scored_sources),
+                    )
+                    # Continue with non-enriched sources on enrichment failure
+
             return scored_sources
 
         except Exception as exc:
@@ -212,9 +231,7 @@ class RetrievalService:
 
         # Apply formula from data-model.md
         credibility_score = (
-            (0.50 * domain_authority)
-            + (0.30 * recency_boost)
-            + (0.20 * citation_normalized)
+            (0.50 * domain_authority) + (0.30 * recency_boost) + (0.20 * citation_normalized)
         )
 
         # Clamp to [0.0, 1.0]
@@ -273,9 +290,7 @@ class RetrievalService:
 
             try:
                 # Parse ISO 8601 timestamp and convert to naive datetime for comparison
-                retrieved_time = datetime.fromisoformat(
-                    source.retrieved_at.replace("Z", "+00:00")
-                )
+                retrieved_time = datetime.fromisoformat(source.retrieved_at.replace("Z", "+00:00"))
                 # Remove timezone info to match utcnow()
                 retrieved_time = retrieved_time.replace(tzinfo=None)
                 age_days = (current_time - retrieved_time).days
@@ -307,3 +322,91 @@ class RetrievalService:
         )
 
         return filtered_sources
+
+    async def _enrich_sources(self, sources: list[SourceRecord]) -> list[SourceRecord]:
+        """Enrich source snippets with full-page content using WebFetchTool.
+
+        T055-T058: Implements enrichment pipeline
+        - Instantiates WebFetchTool and fetches full page content for each URL
+        - Maps FetchedPage fields to SourceRecord fields (title, snippet, retrieved_at)
+        - Gracefully handles partial failures (skips failed URLs)
+        - Only updates SourceRecord if fetch succeeded
+
+        Args:
+            sources: List of SourceRecord to enrich
+
+        Returns:
+            List of SourceRecord with enriched snippets and metadata
+
+        Raises:
+            Exception: Re-raised from WebFetchTool if unrecoverable error occurs
+        """
+        if not sources:
+            return sources
+
+        logger.info(
+            "enrichment_start",
+            sources_count=len(sources),
+        )
+
+        # Extract URLs from sources
+        urls = [str(source.url) for source in sources]
+
+        # Create WebFetchRequest for batch fetch
+        config = WebFetchConfig()
+        request = WebFetchRequest(urls=urls, config=config)
+
+        # Fetch pages using WebFetchTool
+        tool = WebFetchTool()
+        try:
+            result = await tool.fetch_batch(request)
+        finally:
+            await tool.close()
+
+        # Map fetched pages back to sources (T057)
+        fetched_by_url = {page.url: page for page in result.pages}
+
+        enriched_sources = []
+        for source in sources:
+            source_url = str(source.url)
+            fetched_page = fetched_by_url.get(source_url)
+
+            # Skip enrichment if fetch failed (T058 - handle partial failures)
+            if not fetched_page or not fetched_page.succeeded:
+                logger.debug(
+                    "enrichment_skipped_fetch_failed",
+                    url=source_url,
+                    error=fetched_page.error if fetched_page else "no_result",
+                )
+                enriched_sources.append(source)
+                continue
+
+            # Update SourceRecord fields from FetchedPage (T057)
+            # Map title if available and non-empty
+            if fetched_page.title:
+                source.title = fetched_page.title
+
+            # Map content to snippet (most important enrichment)
+            if fetched_page.content:
+                source.snippet = fetched_page.content
+
+            # Map fetched_at to retrieved_at
+            if fetched_page.fetched_at:
+                source.retrieved_at = fetched_page.fetched_at.isoformat()
+
+            logger.debug(
+                "enrichment_updated_source",
+                url=source_url,
+                snippet_length=len(source.snippet),
+            )
+
+            enriched_sources.append(source)
+
+        logger.info(
+            "enrichment_complete",
+            sources_count=len(enriched_sources),
+            fetched_count=result.fetched_count,
+            failed_count=result.failed_count,
+        )
+
+        return enriched_sources

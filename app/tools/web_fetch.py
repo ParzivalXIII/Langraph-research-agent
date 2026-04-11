@@ -29,10 +29,38 @@ logger = get_logger(__name__)
 
 
 class WebFetchTool:
-    """Fetch full-page content from URLs and extract markdown or JSON.
+    """Fetch and extract content from URLs with support for HTML, markdown, and JSON output.
 
-    This tool enriches Tavily search results by fetching the full page
-    content for each URL and extracting clean markdown or structured JSON.
+    This tool enriches research retrieval results by fetching full-page content
+    from URLs and extracting clean markdown or structured JSON. Supports both
+    plain HTTP fetching via httpx and optional Playwright-based headless browser
+    rendering for JavaScript-heavy pages.
+
+    Features:
+    - Batch fetch up to 50 URLs concurrently with configurable concurrency limits
+    - Per-domain rate limiting to respect server policies
+    - Automatic HTML to markdown conversion
+    - Structured JSON extraction (title, headings, paragraphs, links)
+    - Content truncation to configurable limits (default: 5000 chars)
+    - Optional Playwright headless browser rendering for dynamic content
+    - Comprehensive logging and error handling
+    - Graceful fallback from Playwright to httpx if browser unavailable
+
+    Configuration:
+    - web_fetch_max_concurrency: Max concurrent requests (default: 5)
+    - web_fetch_per_domain_rate_limit: Min seconds between requests to same domain (default: 1.0)
+    - web_fetch_headless_enabled: Global toggle for Playwright rendering (default: False)
+    - web_fetch_timeout_seconds: HTTP request timeout (default: 15)
+
+    Usage:
+        >>> tool = WebFetchTool()
+        >>> request = WebFetchRequest(urls=["https://example.com"])
+        >>> result = await tool.fetch_batch(request)
+        >>> await tool.close()
+
+    Or use as async context manager:
+        >>> async with WebFetchTool() as tool:
+        ...     result = await tool.fetch_batch(request)
     """
 
     def __init__(
@@ -59,7 +87,7 @@ class WebFetchTool:
             self._client = httpx.AsyncClient(
                 timeout=self.settings.web_fetch_timeout_seconds,
                 follow_redirects=True,
-                limits=httpx.Limits(max_redirects=5),
+                max_redirects=5,
             )
         return self._client
 
@@ -242,7 +270,6 @@ class WebFetchTool:
         """
         return global_enabled and config.use_headless
 
-
     async def _fetch_single(
         self,
         url: str,
@@ -287,9 +314,7 @@ class WebFetchTool:
                     using_playwright=True,
                 )
 
-                content_bytes = await self._fetch_with_playwright(
-                    url, config.timeout_seconds
-                )
+                content_bytes = await self._fetch_with_playwright(url, config.timeout_seconds)
 
                 # Process the content as we would for httpx response
                 return await self._process_content(
@@ -346,7 +371,7 @@ class WebFetchTool:
                     else:
                         # Exponential backoff with jitter
                         jitter = random.uniform(0, 0.1)
-                        delay = (retry_backoff * (2 ** attempt)) + jitter
+                        delay = (retry_backoff * (2**attempt)) + jitter
                         self.logger.info(
                             "retry_attempt",
                             url=url,
@@ -463,7 +488,7 @@ class WebFetchTool:
             except asyncio.TimeoutError:
                 if self._should_retry(None, "timeout", max_retries - attempt):
                     jitter = random.uniform(0, 0.1)
-                    delay = (retry_backoff * (2 ** attempt)) + jitter
+                    delay = (retry_backoff * (2**attempt)) + jitter
                     self.logger.info(
                         "retry_attempt",
                         url=url,
@@ -505,7 +530,7 @@ class WebFetchTool:
                         )
                     else:
                         jitter = random.uniform(0, 0.1)
-                        delay = (retry_backoff * (2 ** attempt)) + jitter
+                        delay = (retry_backoff * (2**attempt)) + jitter
                         self.logger.info(
                             "retry_attempt",
                             url=url,
@@ -552,7 +577,7 @@ class WebFetchTool:
             except Exception as e:
                 if self._should_retry(None, "fetch_error", max_retries - attempt):
                     jitter = random.uniform(0, 0.1)
-                    delay = (retry_backoff * (2 ** attempt)) + jitter
+                    delay = (retry_backoff * (2**attempt)) + jitter
                     self.logger.info(
                         "retry_attempt",
                         url=url,
@@ -620,9 +645,7 @@ class WebFetchTool:
         # Extract content based on format
         try:
             if config.output_format == "markdown":
-                content = await self._extract_markdown(
-                    content_bytes, config.max_content_chars
-                )
+                content = await self._extract_markdown(content_bytes, config.max_content_chars)
             else:
                 content_dict = await self._extract_json(
                     content_bytes,
@@ -683,7 +706,6 @@ class WebFetchTool:
             empty_extraction=empty,
             error=None,
         )
-
 
     async def _extract_markdown(
         self,
@@ -764,8 +786,8 @@ class WebFetchTool:
             links = []
             if include_links:
                 for a_tag in soup.find_all("a", href=True):
-                    href = a_tag.get("href", "")
-                    link_text = a_tag.get_text(strip=True)
+                    href = str(a_tag.get("href", ""))
+                    link_text = str(a_tag.get_text(strip=True))
                     if href and href.startswith(("http://", "https://", "/")):
                         links.append({"url": href, "text": link_text})
 
@@ -808,13 +830,49 @@ class WebFetchTool:
         return results
 
     async def fetch_batch(self, request: WebFetchRequest) -> WebFetchResult:
-        """Fetch and extract content from a batch of URLs.
+        """Fetch and extract content from a batch of URLs concurrently.
+
+        Core public method for batch fetching and content extraction. Handles
+        concurrent fetching with per-domain rate limiting, automatic retries on
+        transient failures, and detailed result aggregation.
+
+        Fetches are performed concurrently up to the configured max_concurrency limit.
+        Per-domain rate limiting ensures that requests to the same domain are spaced
+        according to the per_domain_rate_limit configuration.
 
         Args:
-            request: WebFetchRequest with URLs and configuration
+            request: WebFetchRequest containing:
+                - urls: List of URLs to fetch (1-50, must be valid HTTP/HTTPS)
+                - config: WebFetchConfig with output format, timeout, content limits
 
         Returns:
-            WebFetchResult with fetched pages and metadata
+            WebFetchResult containing:
+                - requested_count: Total URLs requested
+                - fetched_count: Number successfully fetched (error is None)
+                - failed_count: Number that failed to fetch
+                - total_ms: Total elapsed time in milliseconds
+                - pages: List of FetchedPage results (one per URL, in order)
+
+        Raises:
+            ValueError: If request validation fails (invalid URLs, batch > 50)
+            WebFetchError: If unrecoverable error occurs (e.g., out of memory)
+
+        Note:
+            Individual URL failures (4xx/5xx HTTP status, timeouts, parse errors)
+            are returned as failed FetchedPage objects (error field set) and do
+            NOT raise exceptions. Only batched-level errors are raised.
+
+        Example:
+            >>> from app.schemas.web_fetch import WebFetchRequest, WebFetchConfig
+            >>> request = WebFetchRequest(
+            ...     urls=["https://example.com", "https://github.com"],
+            ...     config=WebFetchConfig(output_format="markdown", max_content_chars=3000)
+            ... )
+            >>> result = await tool.fetch_batch(request)
+            >>> print(f"Fetched: {result.fetched_count}, Failed: {result.failed_count}")
+            >>> for page in result.pages:
+            ...     if page.succeeded:
+            ...         print(f"{page.url}: {len(page.content)} chars")
         """
         start_time = time.monotonic()
         urls = request.urls
@@ -858,16 +916,44 @@ class WebFetchTool:
             raise
 
     async def close(self) -> None:
-        """Close the HTTP client."""
+        """Close and clean up the HTTP client connection.
+
+        Closes the underlying httpx.AsyncClient if it exists. Should be called
+        after finishing batch operations to release network resources.
+
+        Safe to call multiple times (idempotent).
+
+        This method is automatically called when using WebFetchTool as an
+        async context manager.
+
+        Example:
+            >>> tool = WebFetchTool()
+            >>> # ... do work ...
+            >>> await tool.close()  # Clean up
+
+        Or use as context manager (recommended):
+            >>> async with WebFetchTool() as tool:
+            ...     result = await tool.fetch_batch(request)
+            ... # Tool is automatically closed
+        """
         if self._client is not None:
             await self._client.aclose()
             self._client = None
 
     async def __aenter__(self):
-        """Async context manager entry."""
+        """Async context manager entry. Returns self for use in with statement.
+
+        Example:
+            >>> async with WebFetchTool() as tool:
+            ...     request = WebFetchRequest(urls=[...])
+            ...     result = await tool.fetch_batch(request)
+        """
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit."""
-        await self.close()
+        """Async context manager exit. Ensures HTTP client is closed.
 
+        Called automatically when exiting the async with block,
+        guaranteeing cleanup even if an exception occurred.
+        """
+        await self.close()

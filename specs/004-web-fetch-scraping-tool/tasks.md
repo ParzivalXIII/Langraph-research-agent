@@ -186,25 +186,25 @@ Integrate WebFetchTool into existing pipeline; add comprehensive observability; 
 
 ### Tasks
 
-- [ ] T054 [P] Add `enrich: bool = False` keyword-only argument to `RetrievalService.retrieve_sources()` method signature (no breaking change)
-- [ ] T055 Implement `RetrievalService._enrich_sources(sources: list[SourceRecord]) -> list[SourceRecord]` private method
-- [ ] T056 In `_enrich_sources()`, instantiate `WebFetchTool()`, call `fetch_batch()` with URLs from sources, map successful fetches back to SourceRecord fields
-- [ ] T057 Update SourceRecord field writes in enrichment: map `FetchedPage.title` → `SourceRecord.title` (if not empty), `FetchedPage.content` → `SourceRecord.snippet`, `FetchedPage.fetched_at` → `SourceRecord.retrieved_at`
-- [ ] T058 In `_enrich_sources()`, handle partial failures: only update SourceRecord if `FetchedPage.succeeded=True`; skip failed pages gracefully
-- [ ] T059 In `retrieve_sources()`, call `await self._enrich_sources(sources)` conditionally when `enrich=True` and `sources` is non-empty
-- [ ] T060 [P] Write integration test: call `retrieve_sources(..., enrich=False)`, assert SourceRecord fields unchanged from Tavily-only output
-- [ ] T061 [P] Write integration test: call `retrieve_sources(..., enrich=True)`, assert snippet field updated with fetched content, retrieved_at populated
-- [ ] T062 [P] Write end-to-end test: call `ResearchAgent.process_query()` internally using enriched sources, assert brief content uses enriched snippets
-- [ ] T063 Add comprehensive inline docstrings to all public methods: WebFetchTool, WebFetchRequest, FetchedPage, WebFetchResult, WebFetchConfig
-- [ ] T064 Run `ruff check app/tools/web_fetch.py app/schemas/web_fetch.py` and fix all lint errors
-- [ ] T065 Run `black --line-length 100 app/tools/web_fetch.py app/schemas/web_fetch.py` and verify formatting
-- [ ] T066 Run full test suite: `pytest tests/unit/test_web_fetch_*.py tests/integration/test_web_fetch_pipeline.py -v --cov`
-- [ ] T067 Verify test coverage ≥ 85% for core modules; generate coverage report
-- [ ] T068 Validate no new `# type: ignore` comments added; run `pyright` in strict mode on new code
-- [ ] T069 Update Copilot context file (already done by setup-plan.sh) and confirm agent context includes new tech stack
-- [ ] T070 Create/update README in `specs/004-web-fetch-scraping-tool/` with quick-start and common issues
-- [ ] T071 Smoke test: import all new modules, instantiate WebFetchTool, call with 1 real URL, verify no runtime errors
-- [ ] T072 Final edge-case test: empty batch (0 URLs) → rejected by validation; malformed URL → rejected by validation; batch size > 50 → rejected by validation
+- [x] T054 [P] Add `enrich: bool = False` keyword-only argument to `RetrievalService.retrieve_sources()` method signature (no breaking change)
+- [x] T055 Implement `RetrievalService._enrich_sources(sources: list[SourceRecord]) -> list[SourceRecord]` private method
+- [x] T056 In `_enrich_sources()`, instantiate `WebFetchTool()`, call `fetch_batch()` with URLs from sources, map successful fetches back to SourceRecord fields
+- [x] T057 Update SourceRecord field writes in enrichment: map `FetchedPage.title` → `SourceRecord.title` (if not empty), `FetchedPage.content` → `SourceRecord.snippet`, `FetchedPage.fetched_at` → `SourceRecord.retrieved_at`
+- [x] T058 In `_enrich_sources()`, handle partial failures: only update SourceRecord if `FetchedPage.succeeded=True`; skip failed pages gracefully
+- [x] T059 In `retrieve_sources()`, call `await self._enrich_sources(sources)` conditionally when `enrich=True` and `sources` is non-empty
+- [x] T060 [P] Write integration test: call `retrieve_sources(..., enrich=False)`, assert SourceRecord fields unchanged from Tavily-only output
+- [x] T061 [P] Write integration test: call `retrieve_sources(..., enrich=True)`, assert snippet field updated with fetched content, retrieved_at populated
+- [x] T062 [P] Write end-to-end test: call `ResearchAgent.process_query()` internally using enriched sources, assert brief content uses enriched snippets
+- [x] T063 Add comprehensive inline docstrings to all public methods: WebFetchTool, WebFetchRequest, FetchedPage, WebFetchResult, WebFetchConfig
+- [x] T064 Run `ruff check app/tools/web_fetch.py app/schemas/web_fetch.py` and fix all lint errors
+- [x] T065 Run `black --line-length 100 app/tools/web_fetch.py app/schemas/web_fetch.py` and verify formatting
+- [x] T066 Run full test suite: `pytest tests/unit/test_web_fetch_*.py tests/integration/test_web_fetch_pipeline.py -v --cov`
+- [x] T067 Verify test coverage ≥ 85% for core modules; generate coverage report
+- [x] T068 Validate no new `# type: ignore` comments added; run `pyright` in strict mode on new code
+- [x] T069 Update Copilot context file (already done by setup-plan.sh) and confirm agent context includes new tech stack
+- [x] T070 Create/update README in `specs/004-web-fetch-scraping-tool/` with quick-start and common issues
+- [x] T071 Smoke test: import all new modules, instantiate WebFetchTool, call with 1 real URL, verify no runtime errors
+- [x] T072 Final edge-case test: empty batch (0 URLs) → rejected by validation; malformed URL → rejected by validation; batch size > 50 → rejected by validation
 
 ---
 
