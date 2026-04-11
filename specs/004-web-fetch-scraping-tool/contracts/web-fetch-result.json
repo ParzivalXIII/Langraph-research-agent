@@ -1,0 +1,86 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "WebFetchResult",
+  "title": "WebFetchResult",
+  "description": "Output contract from WebFetchTool.fetch_batch(). Contains per-URL FetchedPage results with content or error details.",
+  "type": "object",
+  "required": ["requested_count", "fetched_count", "failed_count", "total_ms", "pages"],
+  "properties": {
+    "requested_count": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of URLs submitted."
+    },
+    "fetched_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of URLs fetched successfully (with usable content)."
+    },
+    "failed_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of URLs that produced an error."
+    },
+    "total_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total wall-clock time in milliseconds for the batch."
+    },
+    "pages": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/FetchedPage"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "FetchedPage": {
+      "title": "FetchedPage",
+      "type": "object",
+      "required": ["url", "fetched_at", "http_status"],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "The URL that was fetched."
+        },
+        "title": {
+          "type": ["string", "null"],
+          "maxLength": 500,
+          "description": "Extracted <title> content, null if not found."
+        },
+        "content": {
+          "type": "string",
+          "description": "Extracted page content in selected output_format."
+        },
+        "content_type": {
+          "type": "string",
+          "enum": ["markdown", "json"],
+          "description": "Format of the content field."
+        },
+        "fetched_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when the fetch completed."
+        },
+        "http_status": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 999,
+          "description": "HTTP response status code; 0 for connection errors."
+        },
+        "processing_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Milliseconds spent fetching + extracting this page."
+        },
+        "error": {
+          "type": ["string", "null"],
+          "description": "Error message if fetch failed, null on success."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

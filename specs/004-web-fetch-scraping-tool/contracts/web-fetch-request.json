@@ -1,0 +1,64 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "WebFetchRequest",
+  "title": "WebFetchRequest",
+  "description": "Input contract for WebFetchTool.fetch_batch(). Provide a list of http/https URLs to fetch.",
+  "type": "object",
+  "required": ["urls"],
+  "properties": {
+    "urls": {
+      "type": "array",
+      "description": "URLs to fetch. Must all be http or https scheme.",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {
+        "type": "string",
+        "format": "uri",
+        "pattern": "^https?://"
+      }
+    },
+    "config": {
+      "$ref": "#/$defs/WebFetchConfig"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "WebFetchConfig": {
+      "title": "WebFetchConfig",
+      "type": "object",
+      "properties": {
+        "output_format": {
+          "type": "string",
+          "enum": ["markdown", "json"],
+          "default": "markdown",
+          "description": "Content extraction format."
+        },
+        "use_headless": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use Playwright Chromium for JS-rendered pages."
+        },
+        "max_content_chars": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 50000,
+          "default": 5000,
+          "description": "Maximum content characters to return per page."
+        },
+        "timeout_seconds": {
+          "type": "number",
+          "minimum": 1.0,
+          "maximum": 120.0,
+          "default": 15.0,
+          "description": "Per-request timeout in seconds."
+        },
+        "include_links": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include extracted hyperlinks in JSON output."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

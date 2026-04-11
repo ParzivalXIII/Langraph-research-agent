@@ -4,6 +4,8 @@ Auto-generated from all feature plans. Last updated: 2026-04-09
 
 ## Active Technologies
 - N/A (UI-only, client-side theme state via localStorage for dark mode toggle) (003-calm-research-theme)
+- Python 3.11+ + httpx, beautifulsoup4, markdownify (new), playwright (optional) (004-web-fetch-scraping-tool)
+- N/A — stateless enrichment; no persistence added (004-web-fetch-scraping-tool)
 
 - Python 3.11+ + FastAPI, LangChain, Tavily API client, OpenRouter API client, Pydantic, SQLModel (optional: SQLAlchemy for ORM), Redis (optional) (001-research-agent)
 - Python 3.12+ + Gradio 6.x (Blocks API), httpx (async), Pydantic (request/response validation) (002-gradio-research-ui)
@@ -24,10 +26,10 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11+: Follow standard conventions
 
 ## Recent Changes
+- 004-web-fetch-scraping-tool: Added Python 3.11+ + httpx, beautifulsoup4, markdownify (new), playwright (optional)
+- 004-web-fetch-scraping-tool: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
 - 003-calm-research-theme: Added Python 3.11+
 
-- 001-research-agent: Added Python 3.11+ + FastAPI, LangChain, Tavily API client, OpenRouter API client, Pydantic, SQLModel (optional: SQLAlchemy for ORM), Redis (optional)
-- 002-gradio-research-ui: Added Python 3.12+ + Gradio 6.x (Blocks API, native async), httpx (async HTTP client with connection pooling), Pydantic (strict request/response validation, no logic drift), structured logging for observability
 
 <!-- MANUAL ADDITIONS START -->
 
