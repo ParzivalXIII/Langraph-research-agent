@@ -89,22 +89,22 @@ Define all Pydantic v2 schemas and error types. No business logic yet; pure data
 
 ### Tasks
 
-- [ ] T016 [US1] Implement `WebFetchTool.__init__()` with logger, settings injection, httpx client initialization
-- [ ] T017 [US1] Implement `WebFetchTool.fetch_batch(request: WebFetchRequest) -> WebFetchResult` public method signature
-- [ ] T018 [P] [US1] Implement `_fetch_single(url, config) -> FetchedPage` for a single URL with httpx.AsyncClient.get()
-- [ ] T019 [P] [US1] Implement HTML parsing and markdown extraction via BeautifulSoup4 + markdownify in `_extract_markdown(html_bytes, max_chars) -> str`
-- [ ] T020 [P] [US1] Implement HTML parsing and JSON extraction in `_extract_json(html_bytes, max_chars, include_links) -> dict` returning {title, body, links}
-- [ ] T021 [US1] Implement `_fetch_single()` error handling: catch httpx exceptions, record error reason (timeout, http_error, empty_extraction, unsupported_content_type), return FetchedPage with error field
-- [ ] T022 [US1] Implement HTTP redirect following with 5-hop limit; if exceeded, set error reason to `too_many_redirects`
-- [ ] T023 [US1] Implement max-response-size check; truncate to `max_content_chars` and set `content_truncated` flag if needed
-- [ ] T024 [US1] Implement `_feed_batch(urls, config)` to orchestrate batch fetch using `asyncio.gather()` on list of `_fetch_single` coroutines
-- [ ] T025 [US1] Implement `fetch_batch()` to: (1) validate request, (2) call `_feed_batch()`, (3) aggregate results into `WebFetchResult` with counts and total_ms, (4) return result
-- [ ] T026 [US1] Add per-URL logging (start, http_status, extraction_format, latency_ms, error_reason) via structlog
-- [ ] T027 [US1] Add batch-level logging (requested_count, fetched_count, failed_count, total_ms)
-- [ ] T028 [P] [US1] Write integration test: fetch 5 real URLs with markdown format, assert no HTML tags, assert content ≥50 chars, assert FetchedPage schema compliance
-- [ ] T029 [P] [US1] Write integration test: fetch 5 URLs with JSON format, assert title/body/links present, verify output ≥3 links for typical page
-- [ ] T030 [US1] Write integration test: mixed batch (2 bad URLs, 3 good), assert 3 successes return content + 2 failures return error reason without exception
-- [ ] T073 [P] Write unit test: Create fixture of 20 real URLs (news, docs, blogs); run batch with output_format=markdown; assert ≥95% of pages produce non-empty, valid markdown (no raw HTML tags, parseable structure). This validates SC-002.
+- [X] T016 [US1] Implement `WebFetchTool.__init__()` with logger, settings injection, httpx client initialization
+- [X] T017 [US1] Implement `WebFetchTool.fetch_batch(request: WebFetchRequest) -> WebFetchResult` public method signature
+- [X] T018 [P] [US1] Implement `_fetch_single(url, config) -> FetchedPage` for a single URL with httpx.AsyncClient.get()
+- [X] T019 [P] [US1] Implement HTML parsing and markdown extraction via BeautifulSoup4 + markdownify in `_extract_markdown(html_bytes, max_chars) -> str`
+- [X] T020 [P] [US1] Implement HTML parsing and JSON extraction in `_extract_json(html_bytes, max_chars, include_links) -> dict` returning {title, body, links}
+- [X] T021 [US1] Implement `_fetch_single()` error handling: catch httpx exceptions, record error reason (timeout, http_error, empty_extraction, unsupported_content_type), return FetchedPage with error field
+- [X] T022 [US1] Implement HTTP redirect following with 5-hop limit; if exceeded, set error reason to `too_many_redirects`
+- [X] T023 [US1] Implement max-response-size check; truncate to `max_content_chars` and set `content_truncated` flag if needed
+- [X] T024 [US1] Implement `_feed_batch(urls, config)` to orchestrate batch fetch using `asyncio.gather()` on list of `_fetch_single` coroutines
+- [X] T025 [US1] Implement `fetch_batch()` to: (1) validate request, (2) call `_feed_batch()`, (3) aggregate results into `WebFetchResult` with counts and total_ms, (4) return result
+- [X] T026 [US1] Add per-URL logging (start, http_status, extraction_format, latency_ms, error_reason) via structlog
+- [X] T027 [US1] Add batch-level logging (requested_count, fetched_count, failed_count, total_ms)
+- [X] T028 [P] [US1] Write integration test: fetch 5 real URLs with markdown format, assert no HTML tags, assert content ≥50 chars, assert FetchedPage schema compliance
+- [X] T029 [P] [US1] Write integration test: fetch 5 URLs with JSON format, assert title/body/links present, verify output ≥3 links for typical page
+- [X] T030 [US1] Write integration test: mixed batch (2 bad URLs, 3 good), assert 3 successes return content + 2 failures return error reason without exception
+- [ ] T031 [P] Write unit test: Create fixture of 20 real URLs (news, docs, blogs); run batch with output_format=markdown; assert ≥95% of pages produce non-empty, valid markdown (no raw HTML tags, parseable structure). This validates SC-002.
 - [ ] T074 [P] Write integration test: Fetch a controlled batch of 10 URLs from distinct domains; use mocked httpx to eliminate network variance; assert `total_ms` is ≤ 10,000 and latency budget is honoured. This validates SC-001 timing SLA.
 - [ ] T075 [P] Implement `asyncio.Semaphore(settings.web_fetch_max_concurrency)` inside `_feed_batch()` to enforce the global concurrency cap; ensure all `_fetch_single()` calls acquire the semaphore before making any network request. This validates FR-002 concurrency limit.
 
