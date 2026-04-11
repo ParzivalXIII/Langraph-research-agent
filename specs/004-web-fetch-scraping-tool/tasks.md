@@ -155,16 +155,17 @@ Define all Pydantic v2 schemas and error types. No business logic yet; pure data
 
 ### Tasks
 
-- [ ] T044 [P] [US3] Implement `_fetch_with_playwright(url, timeout) -> bytes` using `async_playwright().chromium.launch(headless=True)`
-- [ ] T045 [US3] Add import guard for playwright in `_fetch_with_playwright()`: catch ImportError and raise `WebFetchError(reason="headless_unavailable")`
-- [ ] T046 [US3] Add try/except around browser.newPage().goto(url) to catch `playwright.Error` (e.g., Chromium not found)
-- [ ] T047 [P] [US3] Implement `_should_use_headless(config, global_enabled) -> bool` respecting both global setting and per-request config
-- [ ] T048 [US3] Modify `_fetch_single()` to check `_should_use_headless()` after rate-limit wait; if true, try Playwright path; on failure, fallback to httpx
-- [ ] T049 [US3] Add logging: "using_playwright=true|false" per fetch; "headless_fallback_reason=..." on fallback
-- [ ] T050 [P] [US3] Write unit test: mock playwright browser.page.goto() to return HTML with dynamic content, assert content matches extracted markdown
-- [ ] T051 [US3] Write unit test: mock playwright ImportError, assert tool falls back to httpx without exception, logs warning
-- [ ] T052 [P] [US3] Write unit test: global headless disabled, per-request `use_headless=true`, assert httpx used + warning logged
-- [ ] T053 [US3] Write integration test (optional, may skip if no public JS page available): real JS-rendered URL with `use_headless=true`, assert content ≠ plain httpx result
+- [x] T044 [P] [US3] Implement `_fetch_with_playwright(url, timeout) -> bytes` using `async_playwright().chromium.launch(headless=True)`
+- [x] T045 [US3] Add import guard for playwright in `_fetch_with_playwright()`: catch ImportError and raise `WebFetchError(reason="headless_unavailable")`
+- [x] T046 [US3] Add try/except around browser.newPage().goto(url) to catch `playwright.Error` (e.g., Chromium not found)
+- [x] T047 [P] [US3] Implement `_should_use_headless(config, global_enabled) -> bool` respecting both global setting and per-request config
+- [x] T048 [US3] Modify `_fetch_single()` to check `_should_use_headless()` after rate-limit wait; if true, try Playwright path; on failure, fallback to httpx
+- [x] T049 [US3] Add logging: "using_playwright=true|false" per fetch; "headless_fallback_reason=..." on fallback
+- [x] T050 [P] [US3] Write unit test: mock playwright browser.page.goto() to return HTML with dynamic content, assert content matches extracted markdown
+- [x] T051 [US3] Write unit test: mock playwright ImportError, assert tool falls back to httpx without exception, logs warning
+- [x] T052 [P] [US3] Write unit test: global headless disabled, per-request `use_headless=true`, assert httpx used + warning logged
+- [x] T053 [US3] Write integration test (optional, may skip if no public JS page available): real JS-rendered URL with `use_headless=true`, assert content ≠ plain httpx result
+
 
 ---
 

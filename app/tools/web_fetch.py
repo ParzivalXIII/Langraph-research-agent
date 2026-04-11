@@ -1,7 +1,8 @@
 """Web Fetch Tool for enriching search results with full-page content.
 
 This module provides WebFetchTool, which fetches and extracts content from
-URLs to enrich research retrieval results.
+URLs to enrich research retrieval results. Supports both plain HTTP and
+optional Playwright-based headless browser fetching for JS-rendered pages.
 """
 
 import asyncio
@@ -168,6 +169,79 @@ class WebFetchTool:
             # Could be an HTTP-date, but we'll just use a default for now
             return None
 
+    async def _fetch_with_playwright(
+        self,
+        url: str,
+        timeout: float,
+    ) -> bytes:
+        """Fetch a URL using Playwright's headless browser.
+
+        Renders JavaScript and returns the fully rendered HTML as bytes.
+
+        Args:
+            url: URL to fetch
+            timeout: Request timeout in seconds
+
+        Returns:
+            HTML content as bytes
+
+        Raises:
+            WebFetchError: If import fails or browser cannot launch
+        """
+        try:
+            from playwright.async_api import async_playwright
+        except ImportError:
+            from app.core.errors import WebFetchError
+
+            raise WebFetchError(
+                message="Playwright not available for headless fetching",
+                status_code=0,
+                details={"reason": "headless_unavailable", "url": url},
+            )
+
+        try:
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                page = await browser.new_page()
+                try:
+                    await page.goto(url, wait_until="networkidle", timeout=int(timeout * 1000))
+                    content = await page.content()
+                    return content.encode("utf-8")
+                finally:
+                    await page.close()
+                    await browser.close()
+        except Exception as e:
+            from app.core.errors import WebFetchError
+
+            self.logger.warning(
+                "playwright_launch_failed",
+                url=url,
+                error=str(e),
+            )
+            raise WebFetchError(
+                message=f"Playwright browser failed: {str(e)}",
+                status_code=0,
+                details={"reason": "headless_unavailable", "url": url},
+            )
+
+    def _should_use_headless(
+        self,
+        config: WebFetchConfig,
+        global_enabled: bool,
+    ) -> bool:
+        """Determine if headless browser should be used for this request.
+
+        Requires both global setting AND per-request config to be True.
+
+        Args:
+            config: Per-request configuration
+            global_enabled: Global setting for headless support
+
+        Returns:
+            True if headless browser should be used
+        """
+        return global_enabled and config.use_headless
+
 
     async def _fetch_single(
         self,
@@ -196,6 +270,53 @@ class WebFetchTool:
             output_format=config.output_format,
         )
 
+        # Determine if we should try headless browser
+        should_try_headless = self._should_use_headless(
+            config, self.settings.web_fetch_headless_enabled
+        )
+
+        # Try headless browser first if enabled
+        if should_try_headless:
+            try:
+                # Wait for rate limit before playwright attempt
+                await self._wait_for_domain_rate_limit(domain, per_domain_limit)
+
+                self.logger.info(
+                    "web_fetch_playwright_attempt",
+                    url=url,
+                    using_playwright=True,
+                )
+
+                content_bytes = await self._fetch_with_playwright(
+                    url, config.timeout_seconds
+                )
+
+                # Process the content as we would for httpx response
+                return await self._process_content(
+                    url=url,
+                    content_bytes=content_bytes,
+                    http_status=200,
+                    config=config,
+                    start_time=start_time,
+                )
+            except Exception as e:
+                # Fallback to httpx
+                self.logger.warning(
+                    "web_fetch_playwright_fallback",
+                    url=url,
+                    error=str(e),
+                    headless_fallback_reason=str(type(e).__name__),
+                )
+        else:
+            if config.use_headless and not self.settings.web_fetch_headless_enabled:
+                self.logger.warning(
+                    "web_fetch_headless_disabled",
+                    url=url,
+                    reason="global_setting_disabled",
+                    using_playwright=False,
+                )
+
+        # Standard httpx path (primary or fallback)
         for attempt in range(max_retries + 1):
             try:
                 # Wait for rate limit before each attempt
@@ -468,6 +589,101 @@ class WebFetchTool:
             processing_ms=elapsed_ms,
             error="max_retries_exceeded",
         )
+
+    async def _process_content(
+        self,
+        url: str,
+        content_bytes: bytes,
+        http_status: int,
+        config: WebFetchConfig,
+        start_time: float,
+    ) -> FetchedPage:
+        """Process fetched content (common logic for httpx and playwright).
+
+        Args:
+            url: The URL that was fetched
+            content_bytes: Raw content bytes
+            http_status: HTTP status code
+            config: Fetch configuration
+            start_time: Start time for elapsed calculation
+
+        Returns:
+            FetchedPage with processed content
+        """
+        # Check response size
+        if len(content_bytes) > config.max_content_chars:
+            content_bytes = content_bytes[: config.max_content_chars]
+            truncated = True
+        else:
+            truncated = False
+
+        # Extract content based on format
+        try:
+            if config.output_format == "markdown":
+                content = await self._extract_markdown(
+                    content_bytes, config.max_content_chars
+                )
+            else:
+                content_dict = await self._extract_json(
+                    content_bytes,
+                    config.max_content_chars,
+                    config.include_links,
+                )
+                content = str(content_dict)
+        except Exception as e:
+            self.logger.info(
+                "web_fetch_error",
+                url=url,
+                error_reason="extraction_failed",
+                error=str(e),
+            )
+            elapsed_ms = int((time.monotonic() - start_time) * 1000)
+            return FetchedPage(
+                url=url,
+                fetched_at=datetime.now(),
+                http_status=http_status,
+                processing_ms=elapsed_ms,
+                error="extraction_failed",
+            )
+
+        # Check if extraction was empty
+        empty = not content or len(content.strip()) == 0
+
+        elapsed_ms = int((time.monotonic() - start_time) * 1000)
+
+        self.logger.info(
+            "web_fetch_complete",
+            url=url,
+            http_status=http_status,
+            extraction_format=config.output_format,
+            latency_ms=elapsed_ms,
+            content_length=len(content),
+            truncated=truncated,
+            empty=empty,
+        )
+
+        # Extract title from HTML
+        try:
+            soup = BeautifulSoup(content_bytes, "html.parser")
+            title_tag = soup.find("title")
+            title = title_tag.get_text(strip=True) if title_tag else None
+        except Exception:
+            title = None
+
+        return FetchedPage(
+            url=url,
+            title=title,
+            content=content,
+            content_type=config.output_format,
+            fetched_at=datetime.now(),
+            http_status=http_status,
+            processing_ms=elapsed_ms,
+            content_length=len(content) if content else 0,
+            content_truncated=truncated,
+            empty_extraction=empty,
+            error=None,
+        )
+
 
     async def _extract_markdown(
         self,

@@ -375,3 +375,169 @@ class TestWebFetchToolRateLimiting:
         assert result.succeeded is True
         # Should have made 3 requests (initial + 2 retries)
         assert mock_client.get.call_count == 3
+
+
+@pytest.mark.asyncio
+class TestWebFetchToolHeadlessBrowser:
+    """Tests for WebFetchTool headless browser support (Phase 5)."""
+
+    async def test_should_use_headless_respects_global_setting(self):
+        """Test that _should_use_headless respects global setting.
+
+        Validates T047: _should_use_headless checks global setting.
+        """
+        settings = Settings(web_fetch_headless_enabled=False)
+        tool = WebFetchTool(settings=settings)
+
+        config = WebFetchConfig(use_headless=True)
+        # Global disabled + per-request enabled -> should not use
+        assert tool._should_use_headless(config, False) is False
+
+        settings = Settings(web_fetch_headless_enabled=True)
+        tool = WebFetchTool(settings=settings)
+        # Global enabled + per-request enabled -> should use
+        assert tool._should_use_headless(config, True) is True
+
+        config = WebFetchConfig(use_headless=False)
+        # Global enabled but per-request disabled -> should not use
+        assert tool._should_use_headless(config, True) is False
+
+    async def test_should_use_headless_requires_both_true(self):
+        """Test that _should_use_headless requires both global and per-request to be True.
+
+        Validates T047: Both flags must be True.
+        """
+        settings = Settings()
+        tool = WebFetchTool(settings=settings)
+
+        # Test all combinations
+        test_cases = [
+            (True, True, True),
+            (True, False, False),
+            (False, True, False),
+            (False, False, False),
+        ]
+
+        for global_enabled, per_request, expected in test_cases:
+            config = WebFetchConfig(use_headless=per_request)
+            result = tool._should_use_headless(config, global_enabled)
+            assert result == expected, \
+                f"global={global_enabled}, per_request={per_request}: expected {expected}, got {result}"
+
+    async def test_fetch_with_playwright_import_error_raises(self):
+        """Test that ImportError is caught and WebFetchError is raised.
+
+        Validates T045: ImportError triggers WebFetchError with reason='headless_unavailable'.
+        """
+        settings = Settings()
+        tool = WebFetchTool(settings=settings)
+
+        # Patch playwright async_api to raise ImportError
+        with patch("playwright.async_api.async_playwright", side_effect=ImportError("No module")):
+            from app.core.errors import WebFetchError
+
+            with pytest.raises(WebFetchError) as exc_info:
+                await tool._fetch_with_playwright("https://example.com", 15.0)
+
+            assert exc_info.value.details["reason"] == "headless_unavailable"
+
+    async def test_fetch_with_playwright_browser_launch_error(self):
+        """Test that Playwright browser launch errors are caught.
+
+        Validates T046: playwright.Error on browser launch triggers fallback.
+        """
+        settings = Settings()
+        tool = WebFetchTool(settings=settings)
+
+        # Create a mock playwright error
+        class MockPlaywrightError(Exception):
+            pass
+
+        # Mock async_playwright context manager
+        async def mock_async_playwright_context():
+            mock_p = MagicMock()
+            mock_chromium = MagicMock()
+            mock_chromium.launch = AsyncMock(side_effect=MockPlaywrightError("Chromium not found"))
+            mock_p.chromium = mock_chromium
+            return mock_p
+
+        # Create a mock context manager
+        mock_context = MagicMock()
+        mock_context.__aenter__ = AsyncMock(side_effect=MockPlaywrightError("Chromium not found"))
+        mock_context.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("playwright.async_api.async_playwright", return_value=mock_context):
+            from app.core.errors import WebFetchError
+
+            with pytest.raises(WebFetchError) as exc_info:
+                await tool._fetch_with_playwright("https://example.com", 15.0)
+
+            assert exc_info.value.details["reason"] == "headless_unavailable"
+
+    @patch("app.tools.web_fetch.httpx.AsyncClient")
+    async def test_playwright_fallback_on_error(self, mock_client_class):
+        """Test that playwright errors trigger fallback to httpx.
+
+        Validates T048: On playwright error, tool falls back to httpx without exception.
+        """
+        settings = Settings(
+            web_fetch_headless_enabled=True,
+            web_fetch_max_retries=1
+        )
+        tool = WebFetchTool(settings=settings)
+
+        # Create a mock playwright error
+        class MockPlaywrightError(Exception):
+            pass
+
+        # Mock async_playwright context manager
+        mock_context = MagicMock()
+        mock_context.__aenter__ = AsyncMock(side_effect=MockPlaywrightError("Chromium unavailable"))
+        mock_context.__aexit__ = AsyncMock(return_value=None)
+
+        # Mock httpx client to succeed
+        mock_client = AsyncMock()
+        response_200 = MagicMock(spec=httpx.Response)
+        response_200.status_code = 200
+        response_200.headers = {"content-type": "text/html"}
+        response_200.content = b"<html><head><title>Fallback</title></head><body>Content</body></html>"
+        response_200.raise_for_status.return_value = None
+        mock_client.get.return_value = response_200
+        tool._client = mock_client
+
+        with patch("playwright.async_api.async_playwright", return_value=mock_context):
+            config = WebFetchConfig(use_headless=True)
+            result = await tool._fetch_single("https://example.com/test", config)
+
+            # Should succeed via httpx fallback
+            assert result.succeeded is True
+            assert result.http_status == 200
+
+
+
+    @patch("app.tools.web_fetch.httpx.AsyncClient")
+    async def test_global_disabled_logs_warning(self, mock_client_class):
+        """Test that per-request headless with global disabled logs warning.
+
+        Validates T052: Global disabled + per-request enabled -> warning logged + httpx used.
+        """
+        settings = Settings(web_fetch_headless_enabled=False)
+        tool = WebFetchTool(settings=settings)
+
+        mock_client = AsyncMock()
+        response_200 = MagicMock(spec=httpx.Response)
+        response_200.status_code = 200
+        response_200.headers = {"content-type": "text/html"}
+        response_200.content = b"<html><head><title>Test</title></head><body>Content</body></html>"
+        response_200.raise_for_status.return_value = None
+        mock_client.get.return_value = response_200
+        tool._client = mock_client
+
+        config = WebFetchConfig(use_headless=True)
+        result = await tool._fetch_single("https://example.com/test", config)
+
+        # Should succeed but via httpx only
+        assert result.succeeded is True
+        # Verify httpx was called (playwright should not be called)
+        assert mock_client.get.called
+
