@@ -369,7 +369,8 @@ class WebFetchTool:
                 )
 
             except httpx.HTTPStatusError as e:
-                if self._should_retry(e.response.status_code, None, max_retries - attempt):
+                retries_remaining = max_retries - attempt
+                if self._should_retry(e.response.status_code, None, retries_remaining):
                     retry_after = self._get_retry_after(e.response)
                     if retry_after is not None:
                         delay = retry_after
