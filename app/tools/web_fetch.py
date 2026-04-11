@@ -5,9 +5,11 @@ URLs to enrich research retrieval results.
 """
 
 import asyncio
+import random
 import time
 from datetime import datetime
 from typing import Optional
+from urllib.parse import urlparse
 
 import httpx
 from bs4 import BeautifulSoup
@@ -44,6 +46,7 @@ class WebFetchTool:
         self.settings = settings or get_settings()
         self.logger = logger
         self._client: Optional[httpx.AsyncClient] = None
+        self._last_request_time: dict[str, float] = {}
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create the httpx AsyncClient.
@@ -59,12 +62,119 @@ class WebFetchTool:
             )
         return self._client
 
+    def _parse_domain(self, url: str) -> str:
+        """Extract domain from URL for rate-limit bucketing.
+
+        Args:
+            url: URL to parse
+
+        Returns:
+            Domain (netloc) from the URL
+        """
+        try:
+            parsed = urlparse(url)
+            return parsed.netloc or url
+        except Exception:
+            return url
+
+    async def _wait_for_domain_rate_limit(
+        self,
+        domain: str,
+        per_domain_limit: float,
+    ) -> None:
+        """Enforce per-domain rate limit using monotonic clock.
+
+        Maintains spacing of at least 1/per_domain_limit seconds between
+        requests to the same domain.
+
+        Args:
+            domain: Domain to rate-limit
+            per_domain_limit: Requests per second (e.g., 1.0 = 1 req/s)
+        """
+        if per_domain_limit <= 0:
+            return
+
+        rate_limit_interval = 1.0 / per_domain_limit
+        current_time = time.monotonic()
+        last_time = self._last_request_time.get(domain, 0)
+
+        if last_time > 0:
+            elapsed = current_time - last_time
+            if elapsed < rate_limit_interval:
+                wait_time = rate_limit_interval - elapsed
+                self.logger.info(
+                    "rate_limit_wait",
+                    domain=domain,
+                    wait_ms=int(wait_time * 1000),
+                )
+                await asyncio.sleep(wait_time)
+
+        # Update last request time
+        self._last_request_time[domain] = time.monotonic()
+
+    def _should_retry(
+        self,
+        http_status: Optional[int],
+        error: Optional[str],
+        retries_left: int,
+    ) -> bool:
+        """Determine if a request should be retried.
+
+        Retries on 429 (Too Many Requests) and 5xx errors if retries remain.
+
+        Args:
+            http_status: HTTP status code (None if connection error)
+            error: Error reason string
+            retries_left: Number of retries remaining
+
+        Returns:
+            True if request should be retried
+        """
+        if retries_left <= 0:
+            return False
+
+        # Retry on rate limit (429) and server errors (5xx)
+        if http_status is not None:
+            return 429 <= http_status < 600
+
+        # Retry on some transient errors
+        if error in ("timeout", "fetch_error"):
+            return True
+
+        return False
+
+    def _get_retry_after(self, response: Optional[httpx.Response]) -> Optional[float]:
+        """Parse Retry-After header from response.
+
+        Supports both delay-seconds and HTTP-date formats.
+
+        Args:
+            response: HTTP response object
+
+        Returns:
+            Delay in seconds, or None if no Retry-After header
+        """
+        if response is None:
+            return None
+
+        retry_after = response.headers.get("retry-after")
+        if not retry_after:
+            return None
+
+        try:
+            # Try parsing as seconds (most common)
+            return float(retry_after)
+        except ValueError:
+            # Could be an HTTP-date, but we'll just use a default for now
+            return None
+
+
     async def _fetch_single(
         self,
         url: str,
         config: WebFetchConfig,
     ) -> FetchedPage:
-        """Fetch content from a single URL.
+        """Fetch content from a single URL with rate limiting and retries.
 
         Args:
             url: URL to fetch
@@ -75,181 +185,288 @@ class WebFetchTool:
         """
         start_time = time.monotonic()
         client = await self._get_client()
+        domain = self._parse_domain(url)
+        max_retries = self.settings.web_fetch_max_retries
+        retry_backoff = self.settings.web_fetch_retry_backoff
+        per_domain_limit = self.settings.web_fetch_per_domain_rate_limit
 
-        try:
-            self.logger.info(
-                "web_fetch_start",
-                url=url,
-                output_format=config.output_format,
-            )
+        self.logger.info(
+            "web_fetch_start",
+            url=url,
+            output_format=config.output_format,
+        )
 
-            response = await client.get(
-                url,
-                timeout=config.timeout_seconds,
-            )
-            response.raise_for_status()
+        for attempt in range(max_retries + 1):
+            try:
+                # Wait for rate limit before each attempt
+                await self._wait_for_domain_rate_limit(domain, per_domain_limit)
 
-            http_status = response.status_code
-            content_type = response.headers.get("content-type", "")
+                response = await client.get(
+                    url,
+                    timeout=config.timeout_seconds,
+                )
 
-            # Check for unsupported content types
-            if not any(
-                ct in content_type.lower()
-                for ct in ("text/html", "application/xhtml", "text/plain")
-            ):
+                http_status = response.status_code
+
+                # Check if we should retry
+                if self._should_retry(http_status, None, max_retries - attempt):
+                    # Get retry delay
+                    retry_after = self._get_retry_after(response)
+                    if retry_after is not None:
+                        delay = retry_after
+                        self.logger.info(
+                            "retry_attempt",
+                            url=url,
+                            attempt=attempt + 1,
+                            reason=f"http_{http_status}",
+                            wait_ms=int(delay * 1000),
+                            wait_source="retry_after_header",
+                        )
+                    else:
+                        # Exponential backoff with jitter
+                        jitter = random.uniform(0, 0.1)
+                        delay = (retry_backoff * (2 ** attempt)) + jitter
+                        self.logger.info(
+                            "retry_attempt",
+                            url=url,
+                            attempt=attempt + 1,
+                            reason=f"http_{http_status}",
+                            wait_ms=int(delay * 1000),
+                            wait_source="exponential_backoff",
+                        )
+
+                    await asyncio.sleep(delay)
+                    continue
+
+                # Status OK, process the response
+                response.raise_for_status()
+
+                content_type = response.headers.get("content-type", "")
+
+                # Check for unsupported content types
+                if not any(
+                    ct in content_type.lower()
+                    for ct in ("text/html", "application/xhtml", "text/plain")
+                ):
+                    elapsed_ms = int((time.monotonic() - start_time) * 1000)
+                    self.logger.info(
+                        "web_fetch_error",
+                        url=url,
+                        error_reason="unsupported_content_type",
+                        content_type=content_type,
+                        latency_ms=elapsed_ms,
+                    )
+                    return FetchedPage(
+                        url=url,
+                        fetched_at=datetime.now(),
+                        http_status=http_status,
+                        processing_ms=elapsed_ms,
+                        error="unsupported_content_type",
+                    )
+
+                # Check response size
+                content_bytes = response.content
+                if len(content_bytes) > config.max_content_chars:
+                    content_bytes = content_bytes[: config.max_content_chars]
+                    truncated = True
+                else:
+                    truncated = False
+
+                # Extract content based on format
+                try:
+                    if config.output_format == "markdown":
+                        content = await self._extract_markdown(
+                            content_bytes, config.max_content_chars
+                        )
+                    else:
+                        content_dict = await self._extract_json(
+                            content_bytes,
+                            config.max_content_chars,
+                            config.include_links,
+                        )
+                        content = str(content_dict)
+                except Exception as e:
+                    self.logger.info(
+                        "web_fetch_error",
+                        url=url,
+                        error_reason="extraction_failed",
+                        error=str(e),
+                    )
+                    elapsed_ms = int((time.monotonic() - start_time) * 1000)
+                    return FetchedPage(
+                        url=url,
+                        fetched_at=datetime.now(),
+                        http_status=http_status,
+                        processing_ms=elapsed_ms,
+                        error="extraction_failed",
+                    )
+
+                # Check if extraction was empty
+                empty = not content or len(content.strip()) == 0
+
+                elapsed_ms = int((time.monotonic() - start_time) * 1000)
+
+                self.logger.info(
+                    "web_fetch_complete",
+                    url=url,
+                    http_status=http_status,
+                    extraction_format=config.output_format,
+                    latency_ms=elapsed_ms,
+                    content_length=len(content),
+                    truncated=truncated,
+                    empty=empty,
+                )
+
+                # Extract title from HTML
+                try:
+                    soup = BeautifulSoup(content_bytes, "html.parser")
+                    title_tag = soup.find("title")
+                    title = title_tag.get_text(strip=True) if title_tag else None
+                except Exception:
+                    title = None
+
+                return FetchedPage(
+                    url=url,
+                    title=title,
+                    content=content,
+                    content_type=config.output_format,
+                    fetched_at=datetime.now(),
+                    http_status=http_status,
+                    processing_ms=elapsed_ms,
+                    content_length=len(content) if content else 0,
+                    content_truncated=truncated,
+                    empty_extraction=empty,
+                    error=None,
+                )
+
+            except asyncio.TimeoutError:
+                if self._should_retry(None, "timeout", max_retries - attempt):
+                    jitter = random.uniform(0, 0.1)
+                    delay = (retry_backoff * (2 ** attempt)) + jitter
+                    self.logger.info(
+                        "retry_attempt",
+                        url=url,
+                        attempt=attempt + 1,
+                        reason="timeout",
+                        wait_ms=int(delay * 1000),
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+
                 elapsed_ms = int((time.monotonic() - start_time) * 1000)
                 self.logger.info(
                     "web_fetch_error",
                     url=url,
-                    error_reason="unsupported_content_type",
-                    content_type=content_type,
+                    error_reason="timeout",
                     latency_ms=elapsed_ms,
                 )
                 return FetchedPage(
                     url=url,
                     fetched_at=datetime.now(),
-                    http_status=http_status,
+                    http_status=None,
                     processing_ms=elapsed_ms,
-                    error="unsupported_content_type",
+                    error="timeout",
                 )
 
-            # Check response size
-            content_bytes = response.content
-            if len(content_bytes) > config.max_content_chars:
-                content_bytes = content_bytes[: config.max_content_chars]
-                truncated = True
-            else:
-                truncated = False
+            except httpx.HTTPStatusError as e:
+                if self._should_retry(e.response.status_code, None, max_retries - attempt):
+                    retry_after = self._get_retry_after(e.response)
+                    if retry_after is not None:
+                        delay = retry_after
+                        self.logger.info(
+                            "retry_attempt",
+                            url=url,
+                            attempt=attempt + 1,
+                            reason=f"http_{e.response.status_code}",
+                            wait_ms=int(delay * 1000),
+                            wait_source="retry_after_header",
+                        )
+                    else:
+                        jitter = random.uniform(0, 0.1)
+                        delay = (retry_backoff * (2 ** attempt)) + jitter
+                        self.logger.info(
+                            "retry_attempt",
+                            url=url,
+                            attempt=attempt + 1,
+                            reason=f"http_{e.response.status_code}",
+                            wait_ms=int(delay * 1000),
+                            wait_source="exponential_backoff",
+                        )
+                    await asyncio.sleep(delay)
+                    continue
 
-            # Extract content based on format
-            try:
-                if config.output_format == "markdown":
-                    content = await self._extract_markdown(
-                        content_bytes, config.max_content_chars
-                    )
-                else:
-                    content_dict = await self._extract_json(
-                        content_bytes,
-                        config.max_content_chars,
-                        config.include_links,
-                    )
-                    content = str(content_dict)
-            except Exception as e:
+                elapsed_ms = int((time.monotonic() - start_time) * 1000)
                 self.logger.info(
                     "web_fetch_error",
                     url=url,
-                    error_reason="extraction_failed",
-                    error=str(e),
+                    error_reason="http_error",
+                    http_status=e.response.status_code,
+                    latency_ms=elapsed_ms,
                 )
-                elapsed_ms = int((time.monotonic() - start_time) * 1000)
                 return FetchedPage(
                     url=url,
                     fetched_at=datetime.now(),
-                    http_status=http_status,
+                    http_status=e.response.status_code,
                     processing_ms=elapsed_ms,
-                    error="extraction_failed",
+                    error="http_error",
                 )
 
-            # Check if extraction was empty
-            empty = not content or len(content.strip()) == 0
+            except httpx.TooManyRedirects:
+                elapsed_ms = int((time.monotonic() - start_time) * 1000)
+                self.logger.info(
+                    "web_fetch_error",
+                    url=url,
+                    error_reason="too_many_redirects",
+                    latency_ms=elapsed_ms,
+                )
+                return FetchedPage(
+                    url=url,
+                    fetched_at=datetime.now(),
+                    http_status=None,
+                    processing_ms=elapsed_ms,
+                    error="too_many_redirects",
+                )
 
-            elapsed_ms = int((time.monotonic() - start_time) * 1000)
+            except Exception as e:
+                if self._should_retry(None, "fetch_error", max_retries - attempt):
+                    jitter = random.uniform(0, 0.1)
+                    delay = (retry_backoff * (2 ** attempt)) + jitter
+                    self.logger.info(
+                        "retry_attempt",
+                        url=url,
+                        attempt=attempt + 1,
+                        reason="fetch_error",
+                        wait_ms=int(delay * 1000),
+                        error=str(e),
+                    )
+                    await asyncio.sleep(delay)
+                    continue
 
-            self.logger.info(
-                "web_fetch_complete",
-                url=url,
-                http_status=http_status,
-                extraction_format=config.output_format,
-                latency_ms=elapsed_ms,
-                content_length=len(content),
-                truncated=truncated,
-                empty=empty,
-            )
+                elapsed_ms = int((time.monotonic() - start_time) * 1000)
+                self.logger.info(
+                    "web_fetch_error",
+                    url=url,
+                    error_reason="fetch_error",
+                    error=str(e),
+                    latency_ms=elapsed_ms,
+                )
+                return FetchedPage(
+                    url=url,
+                    fetched_at=datetime.now(),
+                    http_status=None,
+                    processing_ms=elapsed_ms,
+                    error="fetch_error",
+                )
 
-            # Extract title from HTML
-            try:
-                soup = BeautifulSoup(content_bytes, "html.parser")
-                title_tag = soup.find("title")
-                title = title_tag.get_text(strip=True) if title_tag else None
-            except Exception:
-                title = None
-
-            return FetchedPage(
-                url=url,
-                title=title,
-                content=content,
-                content_type=config.output_format,
-                fetched_at=datetime.now(),
-                http_status=http_status,
-                processing_ms=elapsed_ms,
-                content_length=len(content) if content else 0,
-                content_truncated=truncated,
-                empty_extraction=empty,
-                error=None,
-            )
-
-        except asyncio.TimeoutError:
-            elapsed_ms = int((time.monotonic() - start_time) * 1000)
-            self.logger.info(
-                "web_fetch_error",
-                url=url,
-                error_reason="timeout",
-                latency_ms=elapsed_ms,
-            )
-            return FetchedPage(
-                url=url,
-                fetched_at=datetime.now(),
-                http_status=None,
-                processing_ms=elapsed_ms,
-                error="timeout",
-            )
-        except httpx.HTTPStatusError as e:
-            elapsed_ms = int((time.monotonic() - start_time) * 1000)
-            self.logger.info(
-                "web_fetch_error",
-                url=url,
-                error_reason="http_error",
-                http_status=e.response.status_code,
-                latency_ms=elapsed_ms,
-            )
-            return FetchedPage(
-                url=url,
-                fetched_at=datetime.now(),
-                http_status=e.response.status_code,
-                processing_ms=elapsed_ms,
-                error="http_error",
-            )
-        except httpx.TooManyRedirects:
-            elapsed_ms = int((time.monotonic() - start_time) * 1000)
-            self.logger.info(
-                "web_fetch_error",
-                url=url,
-                error_reason="too_many_redirects",
-                latency_ms=elapsed_ms,
-            )
-            return FetchedPage(
-                url=url,
-                fetched_at=datetime.now(),
-                http_status=None,
-                processing_ms=elapsed_ms,
-                error="too_many_redirects",
-            )
-        except Exception as e:
-            elapsed_ms = int((time.monotonic() - start_time) * 1000)
-            self.logger.info(
-                "web_fetch_error",
-                url=url,
-                error_reason="fetch_error",
-                error=str(e),
-                latency_ms=elapsed_ms,
-            )
-            return FetchedPage(
-                url=url,
-                fetched_at=datetime.now(),
-                http_status=None,
-                processing_ms=elapsed_ms,
-                error="fetch_error",
-            )
+        # Should not reach here, but handle just in case
+        elapsed_ms = int((time.monotonic() - start_time) * 1000)
+        return FetchedPage(
+            url=url,
+            fetched_at=datetime.now(),
+            http_status=None,
+            processing_ms=elapsed_ms,
+            error="max_retries_exceeded",
+        )
 
     async def _extract_markdown(
         self,

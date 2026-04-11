@@ -125,19 +125,19 @@ Define all Pydantic v2 schemas and error types. No business logic yet; pure data
 
 ### Tasks
 
-- [ ] T031 [P] [US2] Add `_last_request_time: dict[str, float]` instance variable (domain → timestamp) to WebFetchTool
-- [ ] T032 [P] [US2] Implement `_parse_domain(url: str) -> str` to extract domain from HttpUrl for rate-limit bucketing
-- [ ] T033 [US2] Implement `_wait_for_domain_rate_limit(domain, per_domain_limit)` to enforce 1/rate_limit spacing using `time.monotonic` and `asyncio.sleep`
-- [ ] T034 [P] [US2] Integrate rate limit wait into `_fetch_single()`: call wait BEFORE httpx.get() each attempt
-- [ ] T035 [P] [US2] Implement `_should_retry(http_status, error, retries_left) -> bool` to check for 429/5xx and retries_left > 0
-- [ ] T036 [US2] Implement retry loop inside `_fetch_single()` with exponential backoff: `delay = base_delay * (2 ** attempt) + jitter`
-- [ ] T037 [US2] Parse `Retry-After` header from response; if present, use as override to computed backoff in retry loop
-- [ ] T038 [US2] Cap total retries per URL at `web_fetch_max_retries` setting (default 3); after exhaustion, record error and move to next
-- [ ] T039 [US2] Add retry logging: per-attempt events (attempt N, wait_ms, retry_reason)
-- [ ] T040 [P] [US2] Write unit test: mock httpx with 429 response + `Retry-After: 2s`, assert tool waits ≥ 2s before retry
-- [ ] T041 [P] [US2] Write unit test: mock httpx with two 503s then 200, assert succeeds after 2 retries with backoff
-- [ ] T042 [US2] Write integration test: 4 URLs same domain, 1 req/s limit, assert total_ms ≥ 3000
-- [ ] T043 [US2] Write integration test: URL that 429s once then succeeds, assert final result is success with `error=None`
+- [x] T031 [P] [US2] Add `_last_request_time: dict[str, float]` instance variable (domain → timestamp) to WebFetchTool
+- [x] T032 [P] [US2] Implement `_parse_domain(url: str) -> str` to extract domain from HttpUrl for rate-limit bucketing
+- [x] T033 [US2] Implement `_wait_for_domain_rate_limit(domain, per_domain_limit)` to enforce 1/rate_limit spacing using `time.monotonic` and `asyncio.sleep`
+- [x] T034 [P] [US2] Integrate rate limit wait into `_fetch_single()`: call wait BEFORE httpx.get() each attempt
+- [x] T035 [P] [US2] Implement `_should_retry(http_status, error, retries_left) -> bool` to check for 429/5xx and retries_left > 0
+- [x] T036 [US2] Implement retry loop inside `_fetch_single()` with exponential backoff: `delay = base_delay * (2 ** attempt) + jitter`
+- [x] T037 [US2] Parse `Retry-After` header from response; if present, use as override to computed backoff in retry loop
+- [x] T038 [US2] Cap total retries per URL at `web_fetch_max_retries` setting (default 3); after exhaustion, record error and move to next
+- [x] T039 [US2] Add retry logging: per-attempt events (attempt N, wait_ms, retry_reason)
+- [x] T040 [P] [US2] Write unit test: mock httpx with 429 response + `Retry-After: 2s`, assert tool waits ≥ 2s before retry
+- [x] T041 [P] [US2] Write unit test: mock httpx with two 503s then 200, assert succeeds after 2 retries with backoff
+- [x] T042 [US2] Write integration test: 4 URLs same domain, 1 req/s limit, assert total_ms ≥ 1000
+- [x] T043 [US2] Write integration test: URL that 429s once then succeeds, assert final result is success with `error=None`
 
 ---
 

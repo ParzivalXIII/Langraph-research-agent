@@ -2,8 +2,9 @@
 
 import asyncio
 import time
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from app.core.config import Settings
@@ -123,3 +124,254 @@ class TestWebFetchTool:
             assert max_concurrent <= max_concurrency, \
                 f"Limit {max_concurrency}: concurrency {max_concurrent} exceeded limit"
             assert result.fetched_count == 10
+
+
+@pytest.mark.asyncio
+class TestWebFetchToolRateLimiting:
+    """Tests for WebFetchTool rate limiting and retry logic (Phase 4)."""
+
+    async def test_rate_limit_wait_enforces_spacing(self):
+        """Test that rate limit enforces minimum spacing between requests.
+
+        Validates T033: _wait_for_domain_rate_limit enforces 1/rate_limit spacing.
+        """
+        settings = Settings(web_fetch_per_domain_rate_limit=1.0)  # 1 req/s
+        tool = WebFetchTool(settings=settings)
+
+        domain = "example.com"
+
+        # First call should not wait
+        start = time.monotonic()
+        await tool._wait_for_domain_rate_limit(domain, 1.0)
+        first_duration = time.monotonic() - start
+        assert first_duration < 0.1  # Should be nearly instant
+
+        # Second call should wait ~1 second
+        start = time.monotonic()
+        await tool._wait_for_domain_rate_limit(domain, 1.0)
+        second_duration = time.monotonic() - start
+        assert 0.9 < second_duration < 1.2, f"Expected ~1s wait, got {second_duration:.2f}s"
+
+    async def test_rate_limit_different_domains_independent(self):
+        """Test that rate limits are per-domain.
+
+        Validates T032: Different domains should have independent rate limits.
+        """
+        settings = Settings(web_fetch_per_domain_rate_limit=1.0)
+        tool = WebFetchTool(settings=settings)
+
+        # First request to domain1
+        start = time.monotonic()
+        await tool._wait_for_domain_rate_limit("example.com", 1.0)
+        await tool._wait_for_domain_rate_limit("example.com", 1.0)
+        duration1 = time.monotonic() - start
+
+        # Requests to domain2 should not be delayed
+        start = time.monotonic()
+        await tool._wait_for_domain_rate_limit("other.com", 1.0)
+        await tool._wait_for_domain_rate_limit("other.com", 1.0)
+        duration2 = time.monotonic() - start
+
+        # Both should be ~1s (for the second request), but domain2 shouldn't
+        # wait for domain1's delay
+        assert 0.9 < duration1 < 1.2
+        assert 0.9 < duration2 < 1.2
+
+    async def test_should_retry_on_429(self):
+        """Test that tool retries on 429 (Too Many Requests).
+
+        Validates T035: _should_retry returns True for 429 when retries_left > 0.
+        """
+        settings = Settings()
+        tool = WebFetchTool(settings=settings)
+
+        # Should retry on 429 with retries left
+        assert tool._should_retry(429, None, 1) is True
+        assert tool._should_retry(429, None, 3) is True
+
+        # Should not retry on 429 with no retries left
+        assert tool._should_retry(429, None, 0) is False
+
+    async def test_should_retry_on_5xx(self):
+        """Test that tool retries on 5xx server errors.
+
+        Validates T035: _should_retry returns True for 5xx errors.
+        """
+        settings = Settings()
+        tool = WebFetchTool(settings=settings)
+
+        # Should retry on 5xx with retries left
+        for status in [500, 502, 503, 504]:
+            assert tool._should_retry(status, None, 1) is True, f"Should retry on {status}"
+
+        # Should not retry on 5xx with no retries left
+        assert tool._should_retry(503, None, 0) is False
+
+    async def test_should_retry_on_timeout(self):
+        """Test that tool retries on timeout errors.
+
+        Validates T035: _should_retry returns True for timeout errors.
+        """
+        settings = Settings()
+        tool = WebFetchTool(settings=settings)
+
+        # Should retry on timeout with retries left
+        assert tool._should_retry(None, "timeout", 1) is True
+
+        # Should not retry with no retries left
+        assert tool._should_retry(None, "timeout", 0) is False
+
+    async def test_should_not_retry_on_4xx(self):
+        """Test that tool does NOT retry on 4xx errors.
+
+        Validates T035: _should_retry returns False for 4xx (except 429).
+        """
+        settings = Settings()
+        tool = WebFetchTool(settings=settings)
+
+        for status in [400, 401, 403, 404, 410]:
+            assert tool._should_retry(status, None, 1) is False, f"Should not retry on {status}"
+
+    async def test_get_retry_after_parses_seconds(self):
+        """Test that Retry-After header is parsed as seconds.
+
+        Validates T037: _get_retry_after parses Retry-After header correctly.
+        """
+        settings = Settings()
+        tool = WebFetchTool(settings=settings)
+
+        # Create mock response with Retry-After header
+        response = MagicMock(spec=httpx.Response)
+        response.headers = {"retry-after": "2"}
+
+        delay = tool._get_retry_after(response)
+        assert delay == 2.0
+
+    async def test_get_retry_after_returns_none_if_missing(self):
+        """Test that _get_retry_after returns None if header missing.
+
+        Validates T037: _get_retry_after returns None for missing header.
+        """
+        settings = Settings()
+        tool = WebFetchTool(settings=settings)
+
+        response = MagicMock(spec=httpx.Response)
+        response.headers = {}
+
+        delay = tool._get_retry_after(response)
+        assert delay is None
+
+    async def test_get_retry_after_returns_none_if_invalid(self):
+        """Test that _get_retry_after handles invalid header values.
+
+        Validates T037: _get_retry_after returns None for invalid values.
+        """
+        settings = Settings()
+        tool = WebFetchTool(settings=settings)
+
+        response = MagicMock(spec=httpx.Response)
+        response.headers = {"retry-after": "not-a-number"}
+
+        delay = tool._get_retry_after(response)
+        assert delay is None
+
+    async def test_parse_domain_extracts_domain(self):
+        """Test that _parse_domain extracts domain correctly.
+
+        Validates T032: _parse_domain extracts domain from URLs.
+        """
+        settings = Settings()
+        tool = WebFetchTool(settings=settings)
+
+        assert tool._parse_domain("https://example.com/path") == "example.com"
+        assert tool._parse_domain("http://subdomain.example.com/") == "subdomain.example.com"
+        assert tool._parse_domain("https://example.com:8080/path") == "example.com:8080"
+
+    @patch("app.tools.web_fetch.httpx.AsyncClient")
+    async def test_retry_on_429_with_retry_after(self, mock_client_class):
+        """Test retry on 429 response with Retry-After header.
+
+        Validates T040: Tool waits ≥ Retry-After seconds before retry on 429.
+        """
+        settings = Settings(web_fetch_max_retries=2)
+        tool = WebFetchTool(settings=settings)
+
+        # Create mock client that returns 429 then 200
+        mock_client = AsyncMock()
+
+        # First response: 429 with Retry-After
+        response_429 = MagicMock(spec=httpx.Response)
+        response_429.status_code = 429
+        response_429.headers = {"retry-after": "0.2"}
+        response_429.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "Too Many Requests", request=None, response=response_429
+        )
+
+        # Second response: 200 OK
+        response_200 = MagicMock(spec=httpx.Response)
+        response_200.status_code = 200
+        response_200.headers = {"content-type": "text/html"}
+        response_200.content = b"<html><head><title>Test</title></head><body>Hello</body></html>"
+        response_200.raise_for_status.return_value = None
+
+        # Set up side effects
+        mock_client.get.side_effect = [response_429, response_200]
+        tool._client = mock_client
+
+        # Fetch single URL
+        config = WebFetchConfig()
+        start = time.monotonic()
+        result = await tool._fetch_single("https://example.com/test", config)
+        elapsed = time.monotonic() - start
+
+        # Should have retried and succeeded
+        assert result.succeeded is True
+        # Should have waited at least the Retry-After time
+        assert elapsed >= 0.2, f"Should wait ≥0.2s for Retry-After, but only waited {elapsed:.2f}s"
+
+    @patch("app.tools.web_fetch.httpx.AsyncClient")
+    async def test_retry_on_503_with_backoff(self, mock_client_class):
+        """Test retry on 503 with exponential backoff.
+
+        Validates T041: Tool retries 503 errors with exponential backoff.
+        """
+        settings = Settings(
+            web_fetch_max_retries=2,
+            web_fetch_retry_backoff=0.1
+        )
+        tool = WebFetchTool(settings=settings)
+
+        mock_client = AsyncMock()
+
+        # First two responses: 503
+        response_503_1 = MagicMock(spec=httpx.Response)
+        response_503_1.status_code = 503
+        response_503_1.headers = {}
+        response_503_1.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "Service Unavailable", request=None, response=response_503_1
+        )
+
+        response_503_2 = MagicMock(spec=httpx.Response)
+        response_503_2.status_code = 503
+        response_503_2.headers = {}
+        response_503_2.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "Service Unavailable", request=None, response=response_503_2
+        )
+
+        # Third response: 200 OK
+        response_200 = MagicMock(spec=httpx.Response)
+        response_200.status_code = 200
+        response_200.headers = {"content-type": "text/html"}
+        response_200.content = b"<html><head><title>Success</title></head><body>OK</body></html>"
+        response_200.raise_for_status.return_value = None
+
+        mock_client.get.side_effect = [response_503_1, response_503_2, response_200]
+        tool._client = mock_client
+
+        config = WebFetchConfig()
+        result = await tool._fetch_single("https://example.com/test", config)
+
+        # Should have succeeded after retries
+        assert result.succeeded is True
+        # Should have made 3 requests (initial + 2 retries)
+        assert mock_client.get.call_count == 3
