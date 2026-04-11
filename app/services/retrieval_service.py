@@ -28,6 +28,7 @@ Time Range Filter Mapping (from data-model.md):
 
 from datetime import datetime, timezone
 
+from app.core.config import settings
 from app.core.logging import get_logger
 from app.schemas.research import SourceRecord
 from app.schemas.web_fetch import WebFetchConfig, WebFetchRequest
@@ -85,7 +86,7 @@ class RetrievalService:
         max_sources: int = 10,
         time_range: str = "all",
         *,
-        enrich: bool = False,
+        enrich: bool | None = None,
     ) -> list[SourceRecord]:
         """Retrieve sources from Tavily and apply credibility scoring.
 
@@ -97,7 +98,8 @@ class RetrievalService:
             depth: Search depth (basic/intermediate/deep) - maps to Tavily search_depth
             max_sources: Maximum sources to retrieve (overrides depth default if larger)
             time_range: Time range filter (day/week/month/year/all) - filters source recency
-            enrich: If True, fetch and enrich source snippets with full page content (optional, default: False)
+            enrich: If True, fetch and enrich source snippets with full page content (optional).
+                   If None, uses settings.enrich_sources_by_default. Default: None
 
         Returns:
             List of SourceRecords with credibility scores applied (at most max_sources items)
@@ -106,6 +108,9 @@ class RetrievalService:
         Raises:
             ExternalServiceError: If source retrieval fails
         """
+        # Use settings default if enrich not explicitly provided
+        if enrich is None:
+            enrich = settings.enrich_sources_by_default
         # Validate depth parameter
         if depth not in DEPTH_PARAMETERS:
             logger.warning(
