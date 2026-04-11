@@ -64,6 +64,7 @@ TRUSTED_DOMAINS = {
     "forex.com": 0.82,  # Broker-affiliated FX analysis (slightly lower trust)
 }
 
+included_domains = list(TRUSTED_DOMAINS.keys())
 
 class RetrievalService:
     """Service for retrieving and scoring web sources."""
@@ -122,6 +123,10 @@ class RetrievalService:
         # Override max_results if max_sources is explicitly set and larger than depth default
         effective_max_sources = max(max_sources, depth_params["max_results"])
 
+        # Fall back to TRUSTED_DOMAINS when no explicit domain filter is provided,
+        # ensuring high-authority sources are always included in the search.
+        effective_include_domains = include_domains if include_domains is not None else included_domains
+
         logger.info(
             "retrieval_start",
             query=query[:100],
@@ -129,7 +134,7 @@ class RetrievalService:
             max_sources=effective_max_sources,
             time_range=time_range,
             search_depth=depth_params["search_depth"],
-            include_domains=include_domains,
+            include_domains=effective_include_domains,
         )
 
         try:
@@ -138,7 +143,7 @@ class RetrievalService:
                 query=query,
                 depth=depth,
                 max_sources=effective_max_sources,
-                include_domains=include_domains,
+                include_domains=effective_include_domains,
             )
 
             # Filter sources by time_range if applicable

@@ -450,6 +450,36 @@ class WebFetchTool:
                 # Check if extraction was empty
                 empty = not content or len(content.strip()) == 0
 
+                # Auto-fallback to Playwright when httpx yields empty content (JS-rendered page)
+                # and Playwright is globally enabled but was not already tried for this URL.
+                # `should_try_headless` is True only when Playwright was already attempted first,
+                # so `not should_try_headless` prevents an infinite Playwright retry loop.
+                if empty and self.settings.web_fetch_headless_enabled and not should_try_headless:
+                    self.logger.info(
+                        "web_fetch_js_detected_playwright_retry",
+                        url=url,
+                        reason="empty_extraction_js_rendered",
+                    )
+                    try:
+                        await self._wait_for_domain_rate_limit(domain, per_domain_limit)
+                        pw_content_bytes = await self._fetch_with_playwright(
+                            url, config.timeout_seconds
+                        )
+                        return await self._process_content(
+                            url=url,
+                            content_bytes=pw_content_bytes,
+                            http_status=http_status,
+                            config=config,
+                            start_time=start_time,
+                        )
+                    except Exception as pw_err:
+                        self.logger.warning(
+                            "web_fetch_js_playwright_retry_failed",
+                            url=url,
+                            error=str(pw_err),
+                        )
+                        # Fall through and return the empty httpx result
+
                 elapsed_ms = int((time.monotonic() - start_time) * 1000)
 
                 self.logger.info(

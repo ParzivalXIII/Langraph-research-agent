@@ -1,10 +1,10 @@
 # LangChain Research Agent
 
-A bounded research agent system that orchestrates web search, evidence synthesis, and contradiction detection to produce reliable research briefs with source traceability.
+A bounded research agent system that orchestrates web search, full-page content fetching, evidence synthesis, and contradiction detection to produce reliable research briefs with source traceability.
 
-**Backend**: FastAPI + LangChain + Tavily API  
+**Backend**: FastAPI + LangChain + Tavily API + Web Fetch Tool  
 **Frontend**: Gradio 6 (Controlled Research Interface with CALM theme)  
-**Status**: 🚀 Production Ready with full UI integration
+**Status**: 🚀 Production Ready with full UI integration and enhanced content enrichment
 
 ---
 
@@ -29,14 +29,15 @@ A bounded research agent system that orchestrates web search, evidence synthesis
 
 ### What It Does
 
-The Research Agent system provides both a REST API and web UI for comprehensive research query orchestration:
+The Research Agent system provides both a REST API and web UI for comprehensive research query orchestration with enhanced content enrichment:
 
 **Backend Research Agent**:
-- **Summary**: AI-synthesized overview of findings
-- **Key Points**: Extracted highlights from retrieved sources
-- **Sources**: Ranked and scored web search results with credibility metrics
+- **Web Search & Fetch**: Tavily API for initial search + Web Fetch Tool for full-page content extraction
+- **Summary**: AI-synthesized overview of findings using enriched full-page content
+- **Key Points**: Extracted highlights from retrieved sources with enhanced context
+- **Sources**: Ranked and scored web search results with credibility metrics and full-page snippets
 - **Contradictions**: Detected conflicts between sources with severity levels
-- **Confidence Score**: Dynamic calculation based on source agreement & recency
+- **Confidence Score**: Dynamic calculation based on source agreement, content richness, & recency
 
 **Gradio Web Interface**:
 - User-friendly form with depth/source/time-range controls
@@ -50,9 +51,16 @@ The Research Agent system provides both a REST API and web UI for comprehensive 
 **Research Engine**:
 - ✅ **Depth Control**: Basic (3 sources), Intermediate (10 sources), Deep (15 sources)
 - ✅ **Time-Range Filtering**: Search across all time, past year, month, week, or day
+- ✅ **Domain Filtering**: Optional domain whitelist for targeted research (e.g., ["reuters.com", "fxstreet.com"])
 - ✅ **Credibility Scoring**: Domain authority (50%), recency (30%), citation count (20%)
+- ✅ **Web Fetch Tool**: Batch fetch up to 50 URLs with full-page content extraction
+  - Concurrent fetching with configurable rate limiting
+  - Markdown or JSON output formats
+  - Optional headless browser rendering for JavaScript-heavy pages
+  - Automatic retries with exponential backoff (up to 3 attempts)
+  - Per-domain rate limiting (1 req/s configurable)
 - ✅ **Contradiction Detection**: Identifies and surfaces conflicting claims
-- ✅ **Dynamic Confidence**: Calculated from source agreement, quality, recency, contradiction penalty
+- ✅ **Dynamic Confidence**: Calculated from source agreement, quality, recency, content richness, contradiction penalty
 - ✅ **Latency SLAs**: Basic <30s, Intermediate <60s, Deep <120s
 
 **User Interface**:
@@ -77,7 +85,8 @@ The Research Agent system provides both a REST API and web UI for comprehensive 
 - **Scalable**: Horizontal scaling via StatelessService pattern
 - **Observable**: Structured logging with correlation IDs
 - **Bounded**: Max 3 Tavily iterations per query (cost-controlled)
-- **Modular**: Separation of concerns (retrieval, processing, synthesis services)
+- **Modular**: Separation of concerns (retrieval, processing, synthesis, web fetch services)
+- **Content-Enriched**: Web Fetch Tool enriches Tavily snippets with full-page content for improved synthesis
 
 **Frontend**:
 - **Thin Client**: Gradio UI delegates all logic to backend
@@ -188,6 +197,12 @@ uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 - `tavily-python` - Web search
 - `httpx` - Async HTTP
 - `structlog` - Structured logging
+- `scrapy` - Web scraping framework
+- `playwright` - Headless browser automation
+- `beautifulsoup4` - HTML parsing
+- `markdownify` - HTML to markdown conversion
+- `redis` - Caching and sessions
+- `sqlmodel` - SQLAlchemy ORM with Pydantic
 
 **Development**:
 
@@ -215,13 +230,21 @@ OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 OPENROUTER_MODEL_ID=anthropic/claude-3.5-sonnet
 OPENROUTER_API_KEY=sk-or-xxxxxxxxxxxx
 
-# Optional: Database (Phase 4+)
+# Web Fetch Tool Configuration (Optional, with sensible defaults)
+WEB_FETCH_MAX_CONCURRENCY=5           # Max concurrent requests (1-20)
+WEB_FETCH_PER_DOMAIN_LIMIT=1.0        # Rate limit: req/s per domain
+WEB_FETCH_MAX_RETRIES=3               # Automatic retry attempts
+WEB_FETCH_RETRY_BASE_DELAY=1.0        # Exponential backoff base (seconds)
+WEB_FETCH_MAX_CONTENT_CHARS=5000      # Content truncation limit
+WEB_FETCH_HEADLESS_ENABLED=true       # Enable Playwright headless browser
+
+# Optional: Database (SQLite for dev, PostgreSQL for prod)
 DATABASE_URL=sqlite:///./research-agent.db
 # Uncomment for PostgreSQL:
 # DATABASE_URL=postgresql://user:password@localhost:5432/research_agent
 
-# Optional: Redis cache (Phase 3+)
-# REDIS_URL=redis://localhost:6379/0
+# Optional: Redis cache
+REDIS_URL=redis://localhost:6379/0
 
 # Logging
 LOG_LEVEL=INFO    # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
@@ -271,6 +294,32 @@ curl -X POST "http://localhost:8000/research" \
   }'
 ```
 
+### Advanced: Domain-Filtered Research
+
+```bash
+curl -X POST "http://localhost:8000/research" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "USD/EUR exchange rate trends",
+    "depth": "intermediate",
+    "time_range": "month",
+    "include_domains": ["reuters.com", "fxstreet.com", "tradingeconomics.com"]
+  }'
+```
+
+### Advanced: Deep Research with Time Filter and Web Fetch Enrichment
+
+```bash
+curl -X POST "http://localhost:8000/research" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Latest developments in quantum error correction",
+    "depth": "deep",
+    "max_sources": 15,
+    "time_range": "month"
+  }'
+```
+
 **Response** (200 OK):
 
 ```json
@@ -287,7 +336,7 @@ curl -X POST "http://localhost:8000/research" \
       "url": "https://example.com/ibm-condor",
       "relevance": 0.95,
       "credibility_score": 0.87,
-      "snippet": "IBM's new Condor processor represents a milestone...",
+      "snippet": "IBM's new Condor processor represents a milestone with 1121 qubits...",
       "retrieved_at": "2026-03-26T10:30:00Z"
     },
     {
@@ -328,10 +377,11 @@ curl -X POST "http://localhost:8000/research" \
 
 | Parameter | Type | Default | Options |
 |-----------|------|---------|---------|
-| `query` | string | required | Any natural language question |
-| `depth` | string | "basic" | "basic", "intermediate", "deep" |
-| `max_sources` | integer | 10 | 3-20 |
+| `query` | string | required | Any natural language question (3-500 chars) |
+| `depth` | string | "intermediate" | "basic", "intermediate", "deep" |
+| `max_sources` | integer | 10 | 1-50 |
 | `time_range` | string | "all" | "all", "year", "month", "week", "day" |
+| `include_domains` | array[string] | null | Optional domain whitelist (e.g., ["reuters.com", "bbc.com"]) |
 
 ### Response Fields
 
@@ -458,13 +508,24 @@ Errors include descriptive messages and error codes:
 │  └─ Max 3 Iterations            │
 └────────┬────────────────────────┘
          │
-    ┌────┴───────┬──────────────┐
-    ▼            ▼              ▼
-┌────────┐  ┌──────────┐  ┌─────────┐
-│ Tavily │  │OpenRouter│  │ Metrics │
-│ Search │  │   (LLM)  │  │ Service │
-└────────┘  └──────────┘  └─────────┘
+    ┌────┼────────────────┬──────────────┐
+    ▼    ▼                ▼              ▼
+┌────────┐┌──────────┐┌──────────┐ ┌─────────┐
+│ Tavily ││Web Fetch ││OpenRouter│ │ Metrics │
+│ Search ││Tool     ││  (LLM)   │ │ Service │
+└────────┘└──────────┘└──────────┘ └─────────┘
+    │         │           │
+    └─────────┼───────────┘
+        Content Enrichment & 
+        Synthesis Pipeline
 ```
+
+**Pipeline Flow**:
+1. **Retrieval**: Tavily API fetches initial search results and snippets
+2. **Content Enrichment (Optional)**: Web Fetch Tool fetches full-page content from URLs for enriched context
+3. **Processing**: Detection of contradictions and ranking of sources
+4. **Synthesis**: LLM synthesizes final brief using enriched content
+5. **Metrics**: Track query performance and results
 
 ### Service Layers
 
@@ -475,20 +536,27 @@ Errors include descriptive messages and error codes:
 
 **app/services/**
 
-- `retrieval_service.py` - Tavily search, credibility scoring
+- `retrieval_service.py` - Tavily search (with optional Web Fetch Tool integration), credibility scoring
 - `processing_service.py` - Contradiction detection, ranking
 - `synthesis_service.py` - LLM synthesis, confidence calculation
 - `metrics.py` - Query metrics tracking
 
+**app/tools/**
+
+- `tavily.py` - Tavily API wrapper
+- `web_fetch.py` - Web Fetch Tool for full-page content extraction and enrichment
+
 **app/agents/**
 
-- `research_agent.py` - LangChain agent with Tavily tool
+- `research_agent.py` - LangChain agent orchestrator with max 3 iterations
 
 **app/core/**
 
 - `config.py` - Settings and environment variables
 - `logging.py` - Structured logging setup
-- `database.py` - Database session management (optional)
+- `database.py` - Database session management
+- `errors.py` - Error definitions and HTTP mapping
+- `llm.py` - LLM provider configuration
 
 ---
 
@@ -560,6 +628,94 @@ confidence_score = min(max(confidence_score, 0.0), 1.0)  # Clamp 0.0-1.0
 
 ---
 
+## Web Fetch Tool
+
+### Overview
+
+The Web Fetch Tool enriches research results by fetching and extracting full-page content from URLs. This overcomes limitations of search engine snippets and provides richer context for synthesis.
+
+**Core Capabilities**:
+- ✅ **Batch Processing**: Fetch up to 50 URLs concurrently in a single request
+- ✅ **Multiple Output Formats**: Markdown or structured JSON output
+- ✅ **Rate Limiting**: Per-domain request throttling (configurable, default 1 req/s)
+- ✅ **Smart Retries**: Automatic retries on transient errors (429, 5xx) with exponential backoff
+- ✅ **Headless Browser Support**: Optional Playwright rendering for JavaScript-heavy pages
+- ✅ **Graceful Degradation**: Partial results returned if some URLs fail; batch doesn't abort
+- ✅ **Content Truncation**: Configurable max content size with truncation flag
+- ✅ **Error Tracking**: Per-URL error reasons for debugging and monitoring
+
+### Request Schema
+
+```python
+class WebFetchRequest(BaseModel):
+    urls: list[str]                 # 1-50 URLs to fetch
+    output_format: str              # "markdown" or "json"
+    config: WebFetchConfig          # Optional config overrides
+
+class WebFetchConfig(BaseModel):
+    max_content_chars: int = 5000   # Content truncation limit
+    timeout_seconds: float = 15.0   # HTTP timeout
+    use_headless: bool = False      # Playwright rendering
+    include_links: bool = False     # Include links in JSON output
+```
+
+### Response Schema
+
+```python
+class WebFetchResult(BaseModel):
+    pages: list[FetchedPage]        # Results for each URL
+    total_count: int                # Total URLs requested
+    success_count: int              # Successfully fetched
+    failure_count: int              # Failed fetches
+    total_latency_ms: int           # Total time for batch
+
+class FetchedPage(BaseModel):
+    url: str                        # Original URL
+    status_code: int                # HTTP status (200, 404, etc.)
+    content: str | dict             # Extracted content (markdown or JSON)
+    content_length: int             # Content size in chars/bytes
+    content_truncated: bool         # Whether content was truncated
+    latency_ms: int                 # Fetch time for this URL
+    error: Optional[str]            # Error message if fetch failed
+    retrieved_at: str               # ISO 8601 timestamp
+```
+
+### Usage in Research Pipeline
+
+The Web Fetch Tool is automatically integrated into the retrieval service. When a research query is processed:
+
+1. Tavily API returns search results with short snippets
+2. Web Fetch Tool (optional) enriches these with full-page content
+3. Content is passed to synthesis service for more accurate brief generation
+4. Richer context improves contradiction detection and confidence scoring
+
+### Configuration
+
+Web Fetch settings can be overridden per-domain in environment variables:
+
+```bash
+# Global settings
+WEB_FETCH_MAX_CONCURRENCY=5           # Parallel requests limit
+WEB_FETCH_PER_DOMAIN_LIMIT=1.0        # Rate: requests per second per domain
+WEB_FETCH_MAX_RETRIES=3               # Automatic retry attempts
+WEB_FETCH_RETRY_BASE_DELAY=1.0        # Exponential backoff base (seconds)
+WEB_FETCH_MAX_CONTENT_CHARS=5000      # Default content truncation
+WEB_FETCH_HEADLESS_ENABLED=true       # Enable browser automation
+```
+
+### Rate Limiting
+
+The tool enforces per-domain rate limiting to respect server policies:
+
+- **Default**: 1 request per second per domain
+- **Configurable**: Via `WEB_FETCH_PER_DOMAIN_LIMIT`
+- **Respects Retry-After**: Honors server-provided retry delays
+- **Exponential Backoff**: On transient failures (429, 503)
+
+Example: Fetching 5 URLs from the same domain takes ≥4 seconds minimum (1 req/s × 4 gaps).
+
+---
+
 ## Running Tests
 
 ### All Tests
@@ -599,11 +755,11 @@ uv run pytest -m "not slow" -v
 
 ### Test Statistics (Current)
 
-- **Total Tests**: 114 passing ✅
-- **Unit Tests**: 48 tests covering services, schemas, depth control
-- **Integration Tests**: 38 tests covering pipelines, time-range filtering, metrics
-- **API Tests**: 28 tests covering endpoints, depth variations
-- **Code Coverage**: 76% across app modules
+- **Total Tests**: 114+ passing ✅ (includes web fetch tool tests)
+- **Unit Tests**: Covering services, schemas, depth control, web fetch configuration
+- **Integration Tests**: Covering pipelines, time-range filtering, metrics, content enrichment
+- **API Tests**: Covering endpoints, depth variations, request parameter validation
+- **Code Coverage**: 76%+ across app modules
 - **Type Safety**: pyright scan - 0 errors, 0 warnings
 
 ### Test Structure
@@ -614,18 +770,27 @@ tests/
 │   ├── test_services.py           # Service logic tests
 │   ├── test_metrics.py            # Metrics calculation tests
 │   ├── test_depth_control.py      # Depth parameter tests
-│   └── test_schemas.py            # Data model validation
+│   ├── test_schemas.py            # Data model validation
+│   └── test_web_fetch.py          # Web Fetch Tool tests
 │
 ├── integration/
 │   ├── test_research_pipeline.py  # End-to-end service integration
 │   ├── test_metrics_integration.py # Metrics integration tests
 │   ├── test_time_range_filter.py   # Time-range filtering tests
+│   ├── test_web_fetch_pipeline.py # Web Fetch integration with retrieval
 │   └── conftest.py                # Shared fixtures
 │
-└── api/
-    ├── test_research_endpoint.py   # /research endpoint tests
-    ├── test_depth_variations.py    # Depth parameter API tests
-    └── conftest.py                # API fixtures
+├── api/
+│   ├── test_research_endpoint.py   # /research endpoint tests
+│   ├── test_depth_variations.py    # Depth parameter API tests
+│   └── conftest.py                # API fixtures
+│
+├── ui/
+│   └── test_research_interface_styling.py  # UI component tests
+│
+└── fixtures/
+    ├── sample_queries.json        # Test data
+    └── custom_theme_example.py    # UI theme fixtures
 ```
 
 ---
@@ -820,9 +985,15 @@ The system is designed to meet these latency targets:
 
 **Current measured performance**:
 
-- Basic: ~8-12 seconds (1-2 Tavily calls)
-- Intermediate: ~15-25 seconds (2-3 Tavily calls)
-- Deep: ~25-45 seconds (3 Tavily calls + synthesis)
+- Basic: ~8-12 seconds (1-2 Tavily calls, with optional web fetch)
+- Intermediate: ~15-25 seconds (2-3 Tavily calls, with optional web fetch)
+- Deep: ~25-45 seconds (3 Tavily calls + synthesis, with optional web fetch)
+
+**Web Fetch Impact**: Adding full-page content enrichment typically adds 5-15 seconds depending on:
+- Number of URLs to fetch (up to 50 concurrent)
+- Response sizes (configurable, default 5000 chars)
+- Network conditions and target server response times
+- Rate limiting delays (1 req/s per domain default)
 
 ### Metric Tracking
 
@@ -834,15 +1005,23 @@ curl http://localhost:8000/metrics | jq .
 
 ### Optimization Tips
 
-1. **Add Redis caching** (Phase 3+):
+1. **Control Web Fetch behavior**:
+   - Disable content enrichment for speed: reduce timeout or set `max_sources` lower
+   - Increase content limits for richer synthesis: `WEB_FETCH_MAX_CONTENT_CHARS` (up to 50000)
+   - Enable headless browser for JS-heavy sites: `WEB_FETCH_HEADLESS_ENABLED=true`
+   - Tune concurrency: `WEB_FETCH_MAX_CONCURRENCY=5-10` based on your target servers
+
+2. **Add Redis caching** (optional for Phase 3+):
 
    ```bash
    REDIS_URL=redis://localhost:6379/0 uv run uvicorn app.main:app
    ```
 
-2. **Use intermediate depth** for most queries (good balance)
+3. **Use intermediate depth** for most queries (good balance of speed vs. comprehensiveness)
 
-3. **Batch requests** rather than sequential calls
+4. **Batch requests** rather than sequential calls
+
+5. **Domain filtering** via `include_domains` reduces network calls for targeted research
 
 ---
 
@@ -855,6 +1034,12 @@ curl http://localhost:8000/metrics | jq .
 - **API Contracts**: `/specs/001-research-agent/contracts/` - Request/response schemas
 - **Quickstart**: `/specs/001-research-agent/quickstart.md` - Integration examples
 - **Implementation Plan**: `/specs/001-research-agent/plan.md` - Technical decisions
+
+**Web Fetch Tool** (Phase 4+):
+
+- **Specification**: `/specs/004-web-fetch-scraping-tool/spec.md` - Full requirements and design
+- **Data Model**: `/specs/004-web-fetch-scraping-tool/data-model.md` - WebFetchRequest/Response schemas
+- **QA Cases**: `/specs/004-web-fetch-scraping-tool/qa/` - Test scenarios and edge cases
 
 ### External Resources
 

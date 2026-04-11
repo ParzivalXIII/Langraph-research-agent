@@ -53,11 +53,11 @@ class Settings(BaseSettings):
     web_fetch_retry_backoff: float = 1.0
     web_fetch_timeout_seconds: int = 15
     web_fetch_max_content_chars: int = 50000
-    web_fetch_headless_enabled: bool = False
+    web_fetch_headless_enabled: bool = True  # Use headless browser for JS-rendered content
     web_fetch_per_domain_rate_limit: float = 1.0  # requests per second
 
     # RetrievalService Configuration (Phase 6+)
-    enrich_sources_by_default: bool = True  # Enable source enrichment by default
+    enrich_sources_by_default: bool = True  # Disabled: most sites block plain HTTP (403/429/JS-rendered)
 
     # Operational Constraints
     max_sources_default: int = 10
