@@ -38,6 +38,10 @@ class ResearchQuery(BaseModel):
         pattern="^(day|week|month|year|all)$",
         description="Recency filter: day/week/month/year/all",
     )
+    include_domains: list[str] | None = Field(
+        default=None,
+        description="Optional domain whitelist for Tavily search (e.g., ['reuters.com', 'fxstreet.com']). If provided, results are restricted to these domains only.",
+    )
 
     model_config = {
         "json_schema_extra": {

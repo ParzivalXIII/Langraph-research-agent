@@ -54,21 +54,14 @@ TIME_RANGE_DAYS = {
     "all": None,
 }
 
-# Domain authority mapping (can be expanded)
+# Domain authority mapping for FOREX research (Phase 4+)
+# Note: forexlive.com permanently redirects to investinglive.com (rebrand by Finance Magnates)
+# Use investinglive.com as the actual domain for authority scoring
 TRUSTED_DOMAINS = {
-    "arxiv.org": 0.95,
-    "scholar.google.com": 0.95,
-    "ieee.org": 0.93,
-    "acm.org": 0.93,
-    "nature.com": 0.92,
-    "science.org": 0.92,
-    "nytimes.com": 0.88,
-    "bbc.com": 0.88,
-    "reuters.com": 0.88,
-    "apnews.com": 0.88,
-    "github.com": 0.85,
-    "medium.com": 0.65,
-    "wikipedia.org": 0.70,
+    "investinglive.com": 0.88,  # forexlive.com rebrand — live FX news + technical analysis
+    "fxstreet.com": 0.87,  # Established FX analysis and news
+    "reuters.com": 0.90,  # Tier-1 financial news (includes /markets/currencies/ coverage)
+    "forex.com": 0.82,  # Broker-affiliated FX analysis (slightly lower trust)
 }
 
 
@@ -85,6 +78,7 @@ class RetrievalService:
         depth: str = "intermediate",
         max_sources: int = 10,
         time_range: str = "all",
+        include_domains: list[str] | None = None,
         *,
         enrich: bool | None = None,
     ) -> list[SourceRecord]:
@@ -98,6 +92,7 @@ class RetrievalService:
             depth: Search depth (basic/intermediate/deep) - maps to Tavily search_depth
             max_sources: Maximum sources to retrieve (overrides depth default if larger)
             time_range: Time range filter (day/week/month/year/all) - filters source recency
+            include_domains: Optional domain whitelist for Tavily (e.g., ['reuters.com']). If provided, restricts results to those domains.
             enrich: If True, fetch and enrich source snippets with full page content (optional).
                    If None, uses settings.enrich_sources_by_default. Default: None
 
@@ -134,14 +129,16 @@ class RetrievalService:
             max_sources=effective_max_sources,
             time_range=time_range,
             search_depth=depth_params["search_depth"],
+            include_domains=include_domains,
         )
 
         try:
-            # Fetch raw sources from Tavily (passing depth-based parameters)
+            # Fetch raw sources from Tavily (passing depth-based parameters and domain filter)
             sources = await self.tavily_tool.search(
                 query=query,
                 depth=depth,
                 max_sources=effective_max_sources,
+                include_domains=include_domains,
             )
 
             # Filter sources by time_range if applicable

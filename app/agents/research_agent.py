@@ -76,12 +76,13 @@ class ResearchAgent:
             )
 
             try:
-                # Fetch sources for this iteration (passing depth and time_range)
+                # Fetch sources for this iteration (passing depth, time_range, and optional domain filter)
                 sources = await self.retrieval_service.retrieve_sources(
                     query=research_query.query,
                     depth=research_query.depth,
                     max_sources=research_query.max_sources - len(all_sources),
                     time_range=research_query.time_range,
+                    include_domains=research_query.include_domains,
                 )
 
                 # Deduplicate by URL

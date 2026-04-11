@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     web_fetch_per_domain_rate_limit: float = 1.0  # requests per second
 
     # RetrievalService Configuration (Phase 6+)
-    enrich_sources_by_default: bool = False  # Enable source enrichment by default
+    enrich_sources_by_default: bool = True  # Enable source enrichment by default
 
     # Operational Constraints
     max_sources_default: int = 10

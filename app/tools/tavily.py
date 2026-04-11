@@ -58,6 +58,7 @@ class TavilyTool:
         query: str,
         depth: str = "intermediate",
         max_sources: int = 10,
+        include_domains: list[str] | None = None,
     ) -> list[SourceRecord]:
         """Search web using Tavily API and return structured SourceRecords.
 
@@ -68,6 +69,7 @@ class TavilyTool:
             query: Search query string
             depth: Search depth (basic/intermediate/deep) from ResearchQuery
             max_sources: Maximum results to return (overrides depth default)
+            include_domains: Optional list of domains to restrict results (e.g., ['fxstreet.com'])
 
         Returns:
             List of SourceRecord objects with title, url, snippet content
@@ -94,6 +96,7 @@ class TavilyTool:
             query=query[:100],  # Log first 100 chars
             depth=depth,
             max_results=max_results,
+            include_domains_count=len(include_domains) if include_domains else None,
         )
 
         try:
@@ -109,6 +112,7 @@ class TavilyTool:
                         query,
                         depth_params["search_depth"],
                         max_results,
+                        include_domains,
                     ),
                 )
 
@@ -173,13 +177,20 @@ class TavilyTool:
                 details={"query": query},
             ) from exc
 
-    def _sync_search(self, query: str, search_depth: str, max_results: int) -> dict:
+    def _sync_search(
+        self,
+        query: str,
+        search_depth: str,
+        max_results: int,
+        include_domains: list[str] | None = None,
+    ) -> dict:
         """Synchronous Tavily search wrapper (runs in retry loop).
 
         Args:
             query: Search query
             search_depth: Tavily search depth parameter (string: "basic" or "advanced")
             max_results: Maximum results to return
+            include_domains: Optional list of domains to restrict results
 
         Returns:
             Raw Tavily API response dict with 'results' key
@@ -189,10 +200,15 @@ class TavilyTool:
                 "Tavily client not initialized",
                 status_code=None,
             )
-        response = self.client.search(
-            query=query,
-            search_depth=search_depth,
-            max_results=max_results,
-            include_answer=False,  # Don't need Tavily's summarization
-        )
+        search_kwargs = {
+            "query": query,
+            "search_depth": search_depth,
+            "max_results": max_results,
+            "include_answer": False,  # Don't need Tavily's summarization
+        }
+        # Add include_domains if provided (hard domain filter)
+        if include_domains:
+            search_kwargs["include_domains"] = include_domains
+
+        response = self.client.search(**search_kwargs)
         return response
