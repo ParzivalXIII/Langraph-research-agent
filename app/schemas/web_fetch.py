@@ -3,6 +3,7 @@
 Pydantic v2 models for WebFetchTool request/response contracts.
 """
 
+import re
 from datetime import datetime
 from typing import Optional
 
@@ -62,10 +63,14 @@ class WebFetchRequest(BaseModel):
     @field_validator("urls")
     @classmethod
     def validate_urls(cls, v: list[str]) -> list[str]:
-        """Validate URLs are non-empty strings."""
+        """Validate URLs are non-empty strings and have http/https scheme."""
         for url in v:
             if not url or not isinstance(url, str):
                 raise ValueError("All URLs must be non-empty strings")
+            if not re.match(r"^https?://", url, re.IGNORECASE):
+                raise ValueError(
+                    f"URL must be a valid HTTP/HTTPS URL: {url!r} (must start with http:// or https://)"
+                )
         return v
 
 
