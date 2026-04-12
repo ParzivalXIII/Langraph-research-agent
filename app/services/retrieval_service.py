@@ -58,10 +58,13 @@ TIME_RANGE_DAYS = {
 # Note: forexlive.com permanently redirects to investinglive.com (rebrand by Finance Magnates)
 # Use investinglive.com as the actual domain for authority scoring
 TRUSTED_DOMAINS = {
+    "bloomberg.com": 0.92,  # Tier-1 financial news with dedicated currency/markets sections
     "investinglive.com": 0.88,  # forexlive.com rebrand — live FX news + technical analysis
     "fxstreet.com": 0.87,  # Established FX analysis and news
     "reuters.com": 0.90,  # Tier-1 financial news (includes /markets/currencies/ coverage)
+    "investing.com": 0.85,  # Reputable financial analysis platform with forex coverage
     "forex.com": 0.82,  # Broker-affiliated FX analysis (slightly lower trust)
+    "vantagemarkets.com": 0.72,  # Broker-affiliated academy/educational content
 }
 
 included_domains = list(TRUSTED_DOMAINS.keys())
